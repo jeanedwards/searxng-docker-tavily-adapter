@@ -117,6 +117,9 @@ jobs:
               "SEARXNG_SECRET=$SEARXNG_SECRET_KEY"
           
           echo "Deployment completed!"
+          
+          echo "Waiting 30 seconds for containers to start..."
+          sleep 30
       
       # Display the deployed application URL
       - name: Get Application URL
@@ -149,10 +152,11 @@ jobs:
           echo "=========================================="
           echo "Verifying application health..."
           echo "=========================================="
-          echo "Waiting for application to be ready (max 2 minutes)..."
+          echo "Waiting for application to be ready (max 3 minutes)..."
+          echo "Health endpoint: $HEALTH_URL"
           
-          # Wait up to 120 seconds for the app to be healthy
-          MAX_ATTEMPTS=24
+          # Wait up to 3 minutes for the app to be healthy (longer for first startup)
+          MAX_ATTEMPTS=36
           ATTEMPT=0
           SLEEP_TIME=5
           
@@ -184,8 +188,17 @@ jobs:
           echo "=========================================="
           echo "❌ Health check FAILED!"
           echo "=========================================="
-          echo "Application did not become healthy within 2 minutes"
-          echo "Please check the logs:"
-          echo "az containerapp logs show -n ${{ env.CONTAINER_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --tail 100"
+          echo "Application did not become healthy within 3 minutes"
+          echo ""
+          echo "Fetching recent logs for debugging..."
+          echo "=========================================="
+          az containerapp logs show \
+            -n ${{ env.CONTAINER_APP_NAME }} \
+            -g ${{ env.RESOURCE_GROUP }} \
+            --tail 50 || echo "Could not fetch logs"
+          echo "=========================================="
+          echo ""
+          echo "To view full logs, run:"
+          echo "az containerapp logs show -n ${{ env.CONTAINER_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --tail 100 --follow"
           exit 1
 
