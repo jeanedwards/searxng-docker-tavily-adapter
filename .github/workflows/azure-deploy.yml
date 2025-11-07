@@ -163,6 +163,10 @@ jobs:
                   value: "html,json,csv,rss"
                 - name: SEARXNG_SERVER__IMAGE_PROXY
                   value: "true"
+                - name: SEARXNG_SERVER__ALLOWED_HOSTS
+                  value: "*"
+                - name: SEARXNG_SERVER__API_KEY
+                  value: ""
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi
