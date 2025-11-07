@@ -51,9 +51,11 @@ jobs:
       # Deploy or update the container app with sidecars using CLI commands
       - name: Deploy Container App with Sidecars
         run: |
-          # Base64 encode the config to safely pass as environment variable
-          # This avoids issues with multiline content and special characters
-          CONFIG_B64=$(echo "${{ secrets.CONFIG_YAML }}" | base64 -w 0 || echo "${{ secrets.CONFIG_YAML }}" | base64)
+          # Write config to a temporary file for proper handling
+          cat > /tmp/config.yaml <<'CONFIGEOF'
+          ${{ secrets.CONFIG_YAML }}
+          CONFIGEOF
+          
           SEARXNG_SECRET="${{ secrets.SEARXNG_SECRET_KEY }}"
           
           # Check if container app exists
@@ -75,7 +77,7 @@ jobs:
           echo "Creating container app with main container..."
           
           # Create the container app with main container
-          # Include Docker Hub registry credentials for pulling the image
+          # Store config as a secret for proper multiline handling
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -90,7 +92,11 @@ jobs:
             --registry-server docker.io \
             --registry-username ${{ secrets.DOCKER_USER }} \
             --registry-password ${{ secrets.DOCKER_PASSWORD }} \
-            --env-vars "CONFIG_YAML=${{ secrets.CONFIG_YAML }}"
+            --secrets "config-yaml=$(cat /tmp/config.yaml)" "searxng-secret=$SEARXNG_SECRET" \
+            --env-vars "CONFIG_YAML=secretref:config-yaml"
+          
+          # Clean up temp file
+          rm -f /tmp/config.yaml
           
           echo "Main container created. Adding sidecars..."
           
