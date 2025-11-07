@@ -133,8 +133,10 @@ jobs:
                     echo "Writing SearXNG config from environment..."
                     mkdir -p /etc/searxng
                     echo "$CONFIG_YAML" > /etc/searxng/settings.yml
-                    echo "Config written. Starting SearXNG..."
-                    exec /sbin/tini -- /usr/local/searxng/dockerfiles/docker-entrypoint.sh
+                    echo "Config written ($(wc -c < /etc/searxng/settings.yml) bytes)"
+                    ls -la /etc/searxng/
+                    echo "Starting SearXNG..."
+                    exec /usr/local/searxng/dockerfiles/docker-entrypoint.sh
                 env:
                 - name: CONFIG_YAML
                   value: |
