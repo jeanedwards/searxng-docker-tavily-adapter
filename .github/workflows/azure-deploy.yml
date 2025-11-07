@@ -130,15 +130,39 @@ jobs:
                 - name: SEARXNG_BASE_URL
                   value: "http://localhost:8080/"
                 - name: SEARXNG_SECRET
-                  value: "$SEARXNG_SECRET_KEY"
+                  value: "TAVILY_API_KEY"
                 - name: SEARXNG_REDIS_URL
                   value: "redis://localhost:6379/0"
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
-                - name: SEARXNG_LIMITER
+                - name: SEARXNG_SERVER__SECRET_KEY
+                  value: "TAVILY_API_KEY"
+                - name: SEARXNG_SERVER__BASE_URL
+                  value: "http://localhost:8080/"
+                - name: SEARXNG_VALKEY__URL
+                  value: "redis://localhost:6379/0"
+                - name: SEARXNG_OUTGOING__REQUEST_TIMEOUT
+                  value: "10.0"
+                - name: SEARXNG_OUTGOING__MAX_REQUEST_TIMEOUT
+                  value: "15.0"
+                - name: SEARXNG_ENGINES__GOOGLE__DISABLED
+                  value: "false"
+                - name: SEARXNG_ENGINES__DUCKDUCKGO__DISABLED
+                  value: "false"
+                - name: SEARXNG_ENGINES__BRAVE__DISABLED
+                  value: "false"
+                - name: SEARXNG_ENGINES__STARTPAGE__DISABLED
+                  value: "true"
+                - name: SEARXNG_ENGINES__YACY_IMAGES__DISABLED
+                  value: "true"
+                - name: SEARXNG_ENGINES__BING__DISABLED
+                  value: "true"
+                - name: SEARXNG_SERVER__LIMITER
                   value: "false"
                 - name: SEARXNG_SEARCH__FORMATS
                   value: "html,json,csv,rss"
+                - name: SEARXNG_SERVER__IMAGE_PROXY
+                  value: "true"
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi
