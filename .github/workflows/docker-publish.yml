@@ -29,6 +29,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: simple_tavily_adapter
-          file: Dockerfile
+          file: simple_tavily_adapter/Dockerfile
           push: true
           tags: jeconsulting/searxng-docker-tavily-adapter:${{ env.SHORT_SHA }}
