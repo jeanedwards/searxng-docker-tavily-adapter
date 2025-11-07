@@ -114,6 +114,8 @@ jobs:
                 - name: CONFIG_YAML
                   value: |
           $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/          /')
+                - name: SEARXNG_URL
+                  value: "http://localhost:8080"
                 resources:
                   cpu: 0.50
                   memory: 1.0Gi
@@ -131,6 +133,8 @@ jobs:
                   value: "http://localhost:8080/"
                 - name: SEARXNG_SECRET
                   value: "$SEARXNG_SECRET_KEY"
+                - name: SEARXNG_REDIS_URL
+                  value: "redis://localhost:6379/0"
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi

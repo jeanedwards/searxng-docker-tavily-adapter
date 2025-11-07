@@ -304,8 +304,13 @@ async def search(request: SearchRequest) -> dict[str, Any]:
                 if response.status != 200:
                     raise HTTPException(status_code=500, detail="SearXNG request failed")
                 searxng_data = await response.json()
-        except aiohttp.TimeoutError:
+        except asyncio.TimeoutError:
+            # Modern aiohttp uses asyncio.TimeoutError instead of aiohttp.TimeoutError
             raise HTTPException(status_code=504, detail="SearXNG timeout")
+        except aiohttp.ClientError as e:
+            # Catch DNS errors, connection errors, etc.
+            logger.error(f"SearXNG connection error: {e}")
+            raise HTTPException(status_code=503, detail="Cannot connect to search service")
         except Exception as e:
             logger.error(f"SearXNG error: {e}")
             raise HTTPException(status_code=500, detail="Search service unavailable")

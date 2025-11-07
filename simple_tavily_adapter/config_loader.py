@@ -1,6 +1,7 @@
 """
 Configuration loader for Tavily adapter
 """
+import os
 import yaml
 from pathlib import Path
 from typing import Dict, Any
@@ -41,6 +42,10 @@ class Config:
     
     @property
     def searxng_url(self) -> str:
+        # Environment variable override for Azure Container Apps sidecar deployment
+        env_url = os.getenv("SEARXNG_URL")
+        if env_url:
+            return env_url
         return self._config.get("adapter", {}).get("searxng_url", "http://searxng:8080")
     
     @property
