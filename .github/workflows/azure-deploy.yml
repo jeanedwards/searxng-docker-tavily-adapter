@@ -51,69 +51,76 @@ jobs:
       # Create YAML configuration for Container App with sidecars
       - name: Create Container App Configuration
         run: |
-          cat > containerapp.yaml <<EOF
-          properties:
-            configuration:
-              ingress:
-                external: true
-                targetPort: 8000
-                transport: auto
-              secrets:
-                - name: config-yaml
-                  value: "${{ secrets.CONFIG_YAML }}"
-                - name: searxng-secret
-                  value: "${{ secrets.SEARXNG_SECRET_KEY }}"
-            template:
-              containers:
-                # Main container - Tavily Adapter
-                - name: tavily-adapter
-                  image: ${{ env.MAIN_IMAGE }}
-                  env:
-                    - name: CONFIG_YAML
-                      secretRef: config-yaml
-                  resources:
-                    cpu: 0.5
-                    memory: 1Gi
-                  probes:
-                    - type: liveness
-                      httpGet:
-                        path: /health
-                        port: 8000
-                      initialDelaySeconds: 10
-                      periodSeconds: 30
-                
-                # Sidecar 1 - Redis/Valkey
-                - name: redis
-                  image: ${{ env.REDIS_IMAGE }}
-                  args:
-                    - valkey-server
-                    - --save
-                    - "30"
-                    - "1"
-                    - --loglevel
-                    - warning
-                  resources:
-                    cpu: 0.25
-                    memory: 0.5Gi
-                
-                # Sidecar 2 - SearXNG
-                - name: searxng
-                  image: ${{ env.SEARXNG_IMAGE }}
-                  env:
-                    - name: BIND_ADDRESS
-                      value: "[::]:8080"
-                    - name: SEARXNG_BASE_URL
-                      value: "http://localhost:8080/"
-                    - name: SEARXNG_SECRET
-                      secretRef: searxng-secret
-                  resources:
-                    cpu: 0.5
-                    memory: 1Gi
-              scale:
-                minReplicas: 1
-                maxReplicas: 3
+          cat > containerapp.yaml <<'EOF'
+          configuration:
+            ingress:
+              external: true
+              targetPort: 8000
+              transport: auto
+            secrets:
+              - name: config-yaml
+                value: CONFIG_YAML_VALUE
+              - name: searxng-secret
+                value: SEARXNG_SECRET_VALUE
+          template:
+            containers:
+              # Main container - Tavily Adapter
+              - name: tavily-adapter
+                image: MAIN_IMAGE_VALUE
+                env:
+                  - name: CONFIG_YAML
+                    secretRef: config-yaml
+                resources:
+                  cpu: 0.5
+                  memory: 1Gi
+                probes:
+                  - type: liveness
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    initialDelaySeconds: 10
+                    periodSeconds: 30
+              
+              # Sidecar 1 - Redis/Valkey
+              - name: redis
+                image: REDIS_IMAGE_VALUE
+                args:
+                  - valkey-server
+                  - --save
+                  - "30"
+                  - "1"
+                  - --loglevel
+                  - warning
+                resources:
+                  cpu: 0.25
+                  memory: 0.5Gi
+              
+              # Sidecar 2 - SearXNG
+              - name: searxng
+                image: SEARXNG_IMAGE_VALUE
+                env:
+                  - name: BIND_ADDRESS
+                    value: "[::]:8080"
+                  - name: SEARXNG_BASE_URL
+                    value: "http://localhost:8080/"
+                  - name: SEARXNG_SECRET
+                    secretRef: searxng-secret
+                resources:
+                  cpu: 0.5
+                  memory: 1Gi
+            scale:
+              minReplicas: 1
+              maxReplicas: 3
           EOF
           
+          # Replace placeholders with actual values (safer for special characters)
+          sed -i "s|CONFIG_YAML_VALUE|${{ secrets.CONFIG_YAML }}|g" containerapp.yaml
+          sed -i "s|SEARXNG_SECRET_VALUE|${{ secrets.SEARXNG_SECRET_KEY }}|g" containerapp.yaml
+          sed -i "s|MAIN_IMAGE_VALUE|${{ env.MAIN_IMAGE }}|g" containerapp.yaml
+          sed -i "s|REDIS_IMAGE_VALUE|${{ env.REDIS_IMAGE }}|g" containerapp.yaml
+          sed -i "s|SEARXNG_IMAGE_VALUE|${{ env.SEARXNG_IMAGE }}|g" containerapp.yaml
+          
+          echo "Generated containerapp.yaml:"
           cat containerapp.yaml
       
       # Deploy or update the container app with sidecars using YAML config
