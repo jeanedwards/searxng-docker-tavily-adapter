@@ -48,103 +48,85 @@ jobs:
             echo "Container Apps environment already exists"
           fi
       
-      # Create YAML configuration for Container App with sidecars
-      - name: Create Container App Configuration
-        run: |
-          cat > containerapp.yaml <<'EOF'
-          configuration:
-            ingress:
-              external: true
-              targetPort: 8000
-              transport: auto
-            secrets:
-              - name: config-yaml
-                value: CONFIG_YAML_VALUE
-              - name: searxng-secret
-                value: SEARXNG_SECRET_VALUE
-          template:
-            containers:
-              # Main container - Tavily Adapter
-              - name: tavily-adapter
-                image: MAIN_IMAGE_VALUE
-                env:
-                  - name: CONFIG_YAML
-                    secretRef: config-yaml
-                resources:
-                  cpu: 0.5
-                  memory: 1Gi
-                probes:
-                  - type: liveness
-                    httpGet:
-                      path: /health
-                      port: 8000
-                    initialDelaySeconds: 10
-                    periodSeconds: 30
-              
-              # Sidecar 1 - Redis/Valkey
-              - name: redis
-                image: REDIS_IMAGE_VALUE
-                args:
-                  - valkey-server
-                  - --save
-                  - "30"
-                  - "1"
-                  - --loglevel
-                  - warning
-                resources:
-                  cpu: 0.25
-                  memory: 0.5Gi
-              
-              # Sidecar 2 - SearXNG
-              - name: searxng
-                image: SEARXNG_IMAGE_VALUE
-                env:
-                  - name: BIND_ADDRESS
-                    value: "[::]:8080"
-                  - name: SEARXNG_BASE_URL
-                    value: "http://localhost:8080/"
-                  - name: SEARXNG_SECRET
-                    secretRef: searxng-secret
-                resources:
-                  cpu: 0.5
-                  memory: 1Gi
-            scale:
-              minReplicas: 1
-              maxReplicas: 3
-          EOF
-          
-          # Replace placeholders with actual values (safer for special characters)
-          sed -i "s|CONFIG_YAML_VALUE|${{ secrets.CONFIG_YAML }}|g" containerapp.yaml
-          sed -i "s|SEARXNG_SECRET_VALUE|${{ secrets.SEARXNG_SECRET_KEY }}|g" containerapp.yaml
-          sed -i "s|MAIN_IMAGE_VALUE|${{ env.MAIN_IMAGE }}|g" containerapp.yaml
-          sed -i "s|REDIS_IMAGE_VALUE|${{ env.REDIS_IMAGE }}|g" containerapp.yaml
-          sed -i "s|SEARXNG_IMAGE_VALUE|${{ env.SEARXNG_IMAGE }}|g" containerapp.yaml
-          
-          echo "Generated containerapp.yaml:"
-          cat containerapp.yaml
-      
-      # Deploy or update the container app with sidecars using YAML config
+      # Deploy or update the container app with sidecars using CLI commands
       - name: Deploy Container App with Sidecars
         run: |
+          # Write config to temporary files for secret management
+          echo "${{ secrets.CONFIG_YAML }}" > /tmp/config.yaml
+          echo "${{ secrets.SEARXNG_SECRET_KEY }}" > /tmp/searxng_secret.txt
+          
           # Check if container app exists
           if az containerapp show \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --output none 2>/dev/null; then
             
-            echo "Updating existing container app with sidecars..."
-            az containerapp update \
+            echo "Container app exists - deleting and recreating to update sidecars configuration..."
+            az containerapp delete \
               --name ${{ env.CONTAINER_APP_NAME }} \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --yaml containerapp.yaml
-          else
-            echo "Creating new container app with sidecars..."
-            az containerapp create \
-              --name ${{ env.CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --environment ${{ env.CONTAINER_ENV_NAME }} \
-              --yaml containerapp.yaml
+              --yes
+            
+            echo "Waiting for deletion to complete..."
+            sleep 10
           fi
+          
+          echo "Creating container app with main container and sidecars..."
+          
+          # Create the container app with main container only first
+          az containerapp create \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --environment ${{ env.CONTAINER_ENV_NAME }} \
+            --image ${{ env.MAIN_IMAGE }} \
+            --target-port 8000 \
+            --ingress external \
+            --cpu 0.5 \
+            --memory 1Gi \
+            --min-replicas 1 \
+            --max-replicas 3 \
+            --secrets config-yaml="$(cat /tmp/config.yaml)" searxng-secret="$(cat /tmp/searxng_secret.txt)" \
+            --env-vars "CONFIG_YAML=secretref:config-yaml"
+          
+          echo "Main container created. Adding sidecars..."
+          
+          # Get the current revision name
+          REVISION=$(az containerapp revision list \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query '[0].name' -o tsv)
+          
+          echo "Current revision: $REVISION"
+          
+          # Add Redis sidecar using container add
+          echo "Adding Redis sidecar..."
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --container-name redis \
+            --image ${{ env.REDIS_IMAGE }} \
+            --cpu 0.25 \
+            --memory 0.5Gi \
+            --args "valkey-server" "--save" "30" "1" "--loglevel" "warning"
+          
+          # Add SearXNG sidecar
+          echo "Adding SearXNG sidecar..."
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --container-name searxng \
+            --image ${{ env.SEARXNG_IMAGE }} \
+            --cpu 0.5 \
+            --memory 1Gi \
+            --set-env-vars \
+              "BIND_ADDRESS=[::]:8080" \
+              "SEARXNG_BASE_URL=http://localhost:8080/" \
+              "SEARXNG_SECRET=secretref:searxng-secret"
+          
+          # Clean up temporary files
+          rm -f /tmp/config.yaml /tmp/searxng_secret.txt /tmp/containerapp-full.yaml
+          
+          echo "Deployment completed!"
       
       # Display the deployed application URL
       - name: Get Application URL
