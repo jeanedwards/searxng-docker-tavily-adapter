@@ -92,32 +92,52 @@ jobs:
             --registry-password ${{ secrets.DOCKER_PASSWORD }} \
             --env-vars CONFIG_YAML="$CONFIG_YAML_CONTENT"
           
-          echo "Main container created. Adding sidecars..."
+          echo "Main container created. Now adding sidecars via YAML update..."
           
-          # Add Redis sidecar with minimal resources (2 decimal places max)
-          echo "Adding Redis sidecar..."
+          # Create YAML with all three containers to ensure correct total resource calculation
+          # Total: 0.75 CPU, 1.5GB (valid Azure combination)
+          cat > /tmp/sidecars.yaml <<EOF
+          properties:
+            template:
+              containers:
+              - name: je-tavily-adapter
+                image: docker.io/${{ env.MAIN_IMAGE }}
+                env:
+                - name: CONFIG_YAML
+                  value: |
+          $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/          /')
+                resources:
+                  cpu: 0.50
+                  memory: 1.0Gi
+              - name: redis
+                image: docker.io/${{ env.REDIS_IMAGE }}
+                resources:
+                  cpu: 0.15
+                  memory: 0.25Gi
+              - name: searxng
+                image: docker.io/${{ env.SEARXNG_IMAGE }}
+                env:
+                - name: BIND_ADDRESS
+                  value: "[::]:8080"
+                - name: SEARXNG_BASE_URL
+                  value: "http://localhost:8080/"
+                - name: SEARXNG_SECRET
+                  value: "$SEARXNG_SECRET_KEY"
+                resources:
+                  cpu: 0.10
+                  memory: 0.25Gi
+              scale:
+                minReplicas: 1
+                maxReplicas: 1
+          EOF
+          
+          echo "Updating container app with all containers (main + sidecars)..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --container-name redis \
-            --image "docker.io/${{ env.REDIS_IMAGE }}" \
-            --cpu 0.15 \
-            --memory 0.25Gi
+            --yaml /tmp/sidecars.yaml
           
-          # Add SearXNG sidecar
-          # Total allocation: Main (0.5 CPU, 1.0GB) + Redis (0.15 CPU, 0.25GB) + SearXNG (0.10 CPU, 0.25GB) = 0.75 CPU, 1.5GB
-          echo "Adding SearXNG sidecar..."
-          az containerapp update \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --container-name searxng \
-            --image "docker.io/${{ env.SEARXNG_IMAGE }}" \
-            --cpu 0.10 \
-            --memory 0.25Gi \
-            --set-env-vars \
-              "BIND_ADDRESS=[::]:8080" \
-              "SEARXNG_BASE_URL=http://localhost:8080/" \
-              "SEARXNG_SECRET=$SEARXNG_SECRET_KEY"
+          rm -f /tmp/sidecars.yaml
           
           echo "Deployment completed!"
           
