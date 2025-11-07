@@ -94,14 +94,22 @@ jobs:
           
           echo "Main container created. Now adding sidecars via YAML update..."
           
-          # Create YAML with all three containers to ensure correct total resource calculation
+          # Create YAML with all three containers AND registry config
           # Total: 0.75 CPU, 1.5GB (valid Azure combination)
           cat > /tmp/sidecars.yaml <<EOF
           properties:
+            configuration:
+              registries:
+              - server: docker.io
+                username: ${{ secrets.DOCKER_USER }}
+                passwordSecretRef: dockerio-password
+              secrets:
+              - name: dockerio-password
+                value: "${{ secrets.DOCKER_PASSWORD }}"
             template:
               containers:
               - name: je-tavily-adapter
-                image: docker.io/${{ env.MAIN_IMAGE }}
+                image: jeconsulting/searxng-docker-tavily-adapter:latest
                 env:
                 - name: CONFIG_YAML
                   value: |
@@ -110,12 +118,12 @@ jobs:
                   cpu: 0.50
                   memory: 1.0Gi
               - name: redis
-                image: docker.io/${{ env.REDIS_IMAGE }}
+                image: valkey/valkey:8-alpine
                 resources:
                   cpu: 0.15
                   memory: 0.25Gi
               - name: searxng
-                image: docker.io/${{ env.SEARXNG_IMAGE }}
+                image: searxng/searxng:latest
                 env:
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
