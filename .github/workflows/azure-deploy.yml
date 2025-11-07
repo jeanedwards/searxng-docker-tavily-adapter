@@ -126,30 +126,19 @@ jobs:
                   memory: 0.25Gi
               - name: searxng
                 image: searxng/searxng:latest
-                command:
-                  - /bin/sh
-                args:
-                  - -c
-                  - |
-                    echo "=== SearXNG Sidecar Init ==="
-                    echo "Writing config to /etc/searxng/settings.yml..."
-                    mkdir -p /etc/searxng
-                    cat > /etc/searxng/settings.yml << 'EOFCONFIG'
-                    $(echo "$CONFIG_YAML_CONTENT")
-                    EOFCONFIG
-                    echo "Config written: $(wc -c < /etc/searxng/settings.yml) bytes"
-                    echo "First 5 lines:"
-                    head -n 5 /etc/searxng/settings.yml
-                    echo "=== Starting SearXNG ==="
-                    # Use the default entrypoint
-                    exec python3 -m searx.webapp
                 env:
-                - name: BIND_ADDRESS
-                  value: "[::]:8080"
                 - name: SEARXNG_BASE_URL
                   value: "http://localhost:8080/"
                 - name: SEARXNG_SECRET
                   value: "$SEARXNG_SECRET_KEY"
+                - name: SEARXNG_REDIS_URL
+                  value: "redis://localhost:6379/0"
+                - name: BIND_ADDRESS
+                  value: "[::]:8080"
+                - name: SEARXNG_LIMITER
+                  value: "false"
+                - name: SEARXNG_SEARCH__FORMATS
+                  value: "html,json,csv,rss"
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi
