@@ -302,7 +302,9 @@ async def search(request: SearchRequest) -> dict[str, Any]:
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 if response.status != 200:
-                    raise HTTPException(status_code=500, detail="SearXNG request failed")
+                    error_text = await response.text()
+                    logger.error(f"SearXNG returned {response.status}: {error_text[:500]}")
+                    raise HTTPException(status_code=500, detail=f"SearXNG request failed with status {response.status}")
                 searxng_data = await response.json()
         except asyncio.TimeoutError:
             # Modern aiohttp uses asyncio.TimeoutError instead of aiohttp.TimeoutError

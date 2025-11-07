@@ -126,7 +126,19 @@ jobs:
                   memory: 0.25Gi
               - name: searxng
                 image: searxng/searxng:latest
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    echo "Writing SearXNG config from environment..."
+                    mkdir -p /etc/searxng
+                    echo "$CONFIG_YAML" > /etc/searxng/settings.yml
+                    echo "Config written. Starting SearXNG..."
+                    exec /sbin/tini -- /usr/local/searxng/dockerfiles/docker-entrypoint.sh
                 env:
+                - name: CONFIG_YAML
+                  value: |
+          $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/          /')
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
                 - name: SEARXNG_BASE_URL
