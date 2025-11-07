@@ -75,7 +75,7 @@ jobs:
           echo "Creating container app with main container..."
           
           # Create the container app with main container
-          # Using environment variables directly instead of secrets for simplicity
+          # Include Docker Hub registry credentials for pulling the image
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -87,6 +87,9 @@ jobs:
             --memory 1Gi \
             --min-replicas 1 \
             --max-replicas 3 \
+            --registry-server docker.io \
+            --registry-username ${{ secrets.DOCKER_USER }} \
+            --registry-password ${{ secrets.DOCKER_PASSWORD }} \
             --env-vars "CONFIG_YAML=${{ secrets.CONFIG_YAML }}"
           
           echo "Main container created. Adding sidecars..."
