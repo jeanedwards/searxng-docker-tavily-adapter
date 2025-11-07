@@ -128,27 +128,28 @@ jobs:
                 image: searxng/searxng:latest
                 command:
                   - /bin/sh
+                args:
                   - -c
                   - |
-                    echo "Writing SearXNG config from environment..."
+                    echo "=== SearXNG Sidecar Init ==="
+                    echo "Writing config to /etc/searxng/settings.yml..."
                     mkdir -p /etc/searxng
-                    echo "$CONFIG_YAML" > /etc/searxng/settings.yml
-                    echo "Config written ($(wc -c < /etc/searxng/settings.yml) bytes)"
-                    ls -la /etc/searxng/
-                    echo "Starting SearXNG..."
-                    exec /usr/local/searxng/dockerfiles/docker-entrypoint.sh
+                    cat > /etc/searxng/settings.yml << 'EOFCONFIG'
+                    $(echo "$CONFIG_YAML_CONTENT")
+                    EOFCONFIG
+                    echo "Config written: $(wc -c < /etc/searxng/settings.yml) bytes"
+                    echo "First 5 lines:"
+                    head -n 5 /etc/searxng/settings.yml
+                    echo "=== Starting SearXNG ==="
+                    # Use the default entrypoint
+                    exec python3 -m searx.webapp
                 env:
-                - name: CONFIG_YAML
-                  value: |
-          $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/          /')
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
                 - name: SEARXNG_BASE_URL
                   value: "http://localhost:8080/"
                 - name: SEARXNG_SECRET
                   value: "$SEARXNG_SECRET_KEY"
-                - name: SEARXNG_REDIS_URL
-                  value: "redis://localhost:6379/0"
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi
