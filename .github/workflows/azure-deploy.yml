@@ -71,20 +71,22 @@ jobs:
           fi
           
           echo "Creating container app with main container..."
+          echo "Using image: ${{ env.MAIN_IMAGE }}"
           
           # Create the container app with main container
           # Pass config via environment variable (stored securely in Azure)
+          # Reduced resource allocation to fit within service plan: 1 vCPU, 1.75GB
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --environment ${{ env.CONTAINER_ENV_NAME }} \
-            --image ${{ env.MAIN_IMAGE }} \
+            --image "docker.io/${{ env.MAIN_IMAGE }}" \
             --target-port 8000 \
             --ingress external \
             --cpu 0.5 \
-            --memory 1Gi \
+            --memory 1.0Gi \
             --min-replicas 1 \
-            --max-replicas 3 \
+            --max-replicas 1 \
             --registry-server docker.io \
             --registry-username ${{ secrets.DOCKER_USER }} \
             --registry-password ${{ secrets.DOCKER_PASSWORD }} \
@@ -92,25 +94,26 @@ jobs:
           
           echo "Main container created. Adding sidecars..."
           
-          # Add Redis sidecar
+          # Add Redis sidecar with reduced resources
           echo "Adding Redis sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name redis \
-            --image ${{ env.REDIS_IMAGE }} \
-            --cpu 0.25 \
-            --memory 0.5Gi
+            --image "docker.io/${{ env.REDIS_IMAGE }}" \
+            --cpu 0.15 \
+            --memory 0.25Gi
           
-          # Add SearXNG sidecar
+          # Add SearXNG sidecar with reduced resources
+          # Total allocation: Main (0.5 CPU, 1.0GB) + Redis (0.15 CPU, 0.25GB) + SearXNG (0.35 CPU, 0.5GB) = 1.0 CPU, 1.75GB
           echo "Adding SearXNG sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name searxng \
-            --image ${{ env.SEARXNG_IMAGE }} \
-            --cpu 0.5 \
-            --memory 1Gi \
+            --image "docker.io/${{ env.SEARXNG_IMAGE }}" \
+            --cpu 0.35 \
+            --memory 0.5Gi \
             --set-env-vars \
               "BIND_ADDRESS=[::]:8080" \
               "SEARXNG_BASE_URL=http://localhost:8080/" \
