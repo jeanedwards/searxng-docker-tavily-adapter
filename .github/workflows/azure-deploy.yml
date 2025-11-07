@@ -73,18 +73,24 @@ jobs:
           echo "Creating container app with main container..."
           echo "Using image: ${{ env.MAIN_IMAGE }}"
           
-          # Create a placeholder container app with a public image (ensures creation succeeds)
+          # Create the container app with main container
+          # Pass config via environment variable (stored securely in Azure)
+          # Using Azure Container Apps valid combination: 0.75 CPU, 1.5GB total
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --environment ${{ env.CONTAINER_ENV_NAME }} \
-            --image mcr.microsoft.com/azuredocs/containerapps-helloworld:latest \
+            --image "docker.io/${{ env.MAIN_IMAGE }}" \
             --target-port 8000 \
             --ingress external \
             --cpu 0.5 \
             --memory 1.0Gi \
             --min-replicas 1 \
-            --max-replicas 1
+            --max-replicas 1 \
+            --registry-server docker.io \
+            --registry-username ${{ secrets.DOCKER_USER }} \
+            --registry-password ${{ secrets.DOCKER_PASSWORD }} \
+            --env-vars CONFIG_YAML="$CONFIG_YAML_CONTENT"
           
           echo "Main container created. Now adding sidecars via YAML update..."
           
@@ -93,10 +99,6 @@ jobs:
           cat > /tmp/sidecars.yaml <<EOF
           properties:
             configuration:
-              ingress:
-                external: true
-                targetPort: 8000
-                transport: auto
               registries:
               - server: docker.io
                 username: ${{ secrets.DOCKER_USER }}
@@ -107,7 +109,7 @@ jobs:
             template:
               containers:
               - name: je-tavily-adapter
-                image: docker.io/jeconsulting/searxng-docker-tavily-adapter:latest
+                image: jeconsulting/searxng-docker-tavily-adapter:latest
                 env:
                 - name: CONFIG_YAML
                   value: |
@@ -116,12 +118,12 @@ jobs:
                   cpu: 0.50
                   memory: 1.0Gi
               - name: redis
-                image: docker.io/valkey/valkey:8-alpine
+                image: valkey/valkey:8-alpine
                 resources:
                   cpu: 0.15
                   memory: 0.25Gi
               - name: searxng
-                image: docker.io/searxng/searxng:latest
+                image: searxng/searxng:latest
                 env:
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
