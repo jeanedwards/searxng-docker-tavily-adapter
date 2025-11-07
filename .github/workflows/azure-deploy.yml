@@ -94,25 +94,25 @@ jobs:
           
           echo "Main container created. Adding sidecars..."
           
-          # Add Redis sidecar with minimal resources
+          # Add Redis sidecar with minimal resources (2 decimal places max)
           echo "Adding Redis sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name redis \
             --image "docker.io/${{ env.REDIS_IMAGE }}" \
-            --cpu 0.125 \
+            --cpu 0.15 \
             --memory 0.25Gi
           
           # Add SearXNG sidecar
-          # Total allocation must be: Main (0.5 CPU, 1.0GB) + Redis (0.125 CPU, 0.25GB) + SearXNG (0.125 CPU, 0.25GB) = 0.75 CPU, 1.5GB
+          # Total allocation: Main (0.5 CPU, 1.0GB) + Redis (0.15 CPU, 0.25GB) + SearXNG (0.10 CPU, 0.25GB) = 0.75 CPU, 1.5GB
           echo "Adding SearXNG sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name searxng \
             --image "docker.io/${{ env.SEARXNG_IMAGE }}" \
-            --cpu 0.125 \
+            --cpu 0.10 \
             --memory 0.25Gi \
             --set-env-vars \
               "BIND_ADDRESS=[::]:8080" \
