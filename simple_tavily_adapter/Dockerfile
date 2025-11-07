@@ -16,6 +16,10 @@ RUN python -m playwright install --with-deps chromium
 
 COPY . .
 
+# Make entrypoint script executable
+RUN chmod +x entrypoint.sh
+
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use entrypoint script to handle config injection for Azure deployment
+ENTRYPOINT ["/app/entrypoint.sh"]

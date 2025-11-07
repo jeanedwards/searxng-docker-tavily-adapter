@@ -27,6 +27,115 @@ curl -X POST "http://localhost:8000/search" \
      -d '{"query": "цена bitcoin", "max_results": 3}'
 ```
 
+## ☁️ Развертывание в Azure Container Apps
+
+### Автоматическое развертывание через GitHub Actions
+
+Проект включает готовый GitHub Actions workflow для развертывания в Azure Container Apps с sidecars (Redis + SearXNG).
+
+#### Предварительные требования
+
+1. **Azure Service Principal** с правами Contributor на resource group
+2. **GitHub Secrets** в вашем репозитории:
+   - `AZURE_CREDENTIALS` - JSON с данными service principal:
+     ```json
+     {
+       "clientId": "xxx",
+       "clientSecret": "xxx",
+       "subscriptionId": "xxx",
+       "tenantId": "xxx"
+     }
+     ```
+   - `CONFIG_YAML` - содержимое файла `config.azure.yaml` с вашими настройками
+   - `SEARXNG_SECRET_KEY` - случайная строка (32+ символов) для SearXNG, например: `openssl rand -hex 32`
+
+#### Настройка конфигурации
+
+1. Скопируйте шаблон Azure конфигурации:
+   ```bash
+   cp config.azure.yaml config.production.yaml
+   ```
+
+2. Отредактируйте `config.production.yaml`:
+   ```yaml
+   server:
+     secret_key: "ИЗМЕНИТЕ_НА_СЛУЧАЙНУЮ_СТРОКУ_32_СИМВОЛА"  # Обязательно!
+   
+   # Остальные настройки можно оставить как есть
+   # localhost используется для sidecars в Azure Container Apps
+   ```
+
+3. Добавьте содержимое в GitHub Secret:
+   ```bash
+   # В настройках репозитория: Settings → Secrets → Actions → New repository secret
+   # Имя: CONFIG_YAML
+   # Значение: содержимое config.production.yaml
+   ```
+
+#### Запуск развертывания
+
+1. Перейдите в раздел **Actions** вашего GitHub репозитория
+2. Выберите workflow **Deploy to Azure Container Apps**
+3. Нажмите **Run workflow** → **Run workflow**
+4. Дождитесь завершения развертывания (~5-10 минут)
+
+#### После развертывания
+
+```bash
+# Получите URL приложения
+az containerapp show \
+  -n je-tavily-adapter \
+  -g RG-GBLI-AI-Risk-Insights \
+  --query properties.configuration.ingress.fqdn -o tsv
+
+# Проверьте работоспособность
+curl https://<app-url>/health
+
+# Выполните тестовый поиск
+curl -X POST https://<app-url>/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Azure Cloud","max_results":3}'
+```
+
+#### Архитектура развертывания Azure
+
+```
+┌───────────────────────────────────────────────────────┐
+│           Azure Container App Instance                │
+│                                                       │
+│  ┌──────────────────┐  ┌──────────┐  ┌────────────┐  │
+│  │ Tavily Adapter   │  │  Redis   │  │  SearXNG   │  │
+│  │ (main container) │  │ (sidecar)│  │ (sidecar)  │  │
+│  │ Port: 8000       │  │ :6379    │  │ :8080      │  │
+│  └──────────────────┘  └──────────┘  └────────────┘  │
+│           ▲                                           │
+│           │ Все контейнеры разделяют localhost        │
+└───────────┼───────────────────────────────────────────┘
+            │
+            │ Ingress (HTTPS)
+            ▼
+     Ваш API клиент
+```
+
+**Особенности:**
+- Все 3 контейнера работают в одном под, разделяя localhost
+- Только порт 8000 (Tavily Adapter) открыт внешне через HTTPS ingress
+- Redis и SearXNG доступны только внутри пода через localhost
+- Автоматическое масштабирование: 1-3 реплики
+- Эфемерное хранилище (данные Redis теряются при рестарте)
+
+#### Настройка workflow
+
+Если нужно изменить параметры развертывания, отредактируйте `.github/workflows/azure-deploy.yml`:
+
+```yaml
+env:
+  RESOURCE_GROUP: RG-GBLI-AI-Risk-Insights    # Ваша resource group
+  CONTAINER_APP_NAME: je-tavily-adapter       # Имя приложения
+  CONTAINER_ENV_NAME: je-tavily-env           # Имя окружения
+  LOCATION: westeurope                         # Регион Azure
+```
+
 ## 💡 Использование
 
 ### Drop-in замена для Tavily

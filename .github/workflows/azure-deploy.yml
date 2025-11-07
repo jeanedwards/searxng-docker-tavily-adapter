@@ -1,0 +1,212 @@
+name: Deploy to Azure Container Apps
+
+# Manual deployment only - no automatic triggers on commits
+on:
+  workflow_dispatch:
+
+env:
+  # Azure resource configuration
+  RESOURCE_GROUP: RG-GBLI-AI-Risk-Insights
+  CONTAINER_APP_NAME: je-tavily-adapter
+  CONTAINER_ENV_NAME: je-tavily-env
+  LOCATION: westeurope
+  
+  # Container images
+  MAIN_IMAGE: jeconsulting/searxng-docker-tavily-adapter:latest
+  REDIS_IMAGE: valkey/valkey:8-alpine
+  SEARXNG_IMAGE: searxng/searxng:latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Log in to Azure using service principal credentials from GitHub secrets
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      # Check if Container Apps environment exists, create if needed
+      - name: Create Container Apps Environment if needed
+        run: |
+          # Check if environment exists
+          if ! az containerapp env show \
+            --name ${{ env.CONTAINER_ENV_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --output none 2>/dev/null; then
+            
+            echo "Creating Container Apps environment..."
+            az containerapp env create \
+              --name ${{ env.CONTAINER_ENV_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --location ${{ env.LOCATION }}
+          else
+            echo "Container Apps environment already exists"
+          fi
+      
+      # Create YAML configuration for Container App with sidecars
+      - name: Create Container App Configuration
+        run: |
+          cat > containerapp.yaml <<EOF
+          properties:
+            configuration:
+              ingress:
+                external: true
+                targetPort: 8000
+                transport: auto
+              secrets:
+                - name: config-yaml
+                  value: "${{ secrets.CONFIG_YAML }}"
+                - name: searxng-secret
+                  value: "${{ secrets.SEARXNG_SECRET_KEY }}"
+            template:
+              containers:
+                # Main container - Tavily Adapter
+                - name: tavily-adapter
+                  image: ${{ env.MAIN_IMAGE }}
+                  env:
+                    - name: CONFIG_YAML
+                      secretRef: config-yaml
+                  resources:
+                    cpu: 0.5
+                    memory: 1Gi
+                  probes:
+                    - type: liveness
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 30
+                
+                # Sidecar 1 - Redis/Valkey
+                - name: redis
+                  image: ${{ env.REDIS_IMAGE }}
+                  args:
+                    - valkey-server
+                    - --save
+                    - "30"
+                    - "1"
+                    - --loglevel
+                    - warning
+                  resources:
+                    cpu: 0.25
+                    memory: 0.5Gi
+                
+                # Sidecar 2 - SearXNG
+                - name: searxng
+                  image: ${{ env.SEARXNG_IMAGE }}
+                  env:
+                    - name: BIND_ADDRESS
+                      value: "[::]:8080"
+                    - name: SEARXNG_BASE_URL
+                      value: "http://localhost:8080/"
+                    - name: SEARXNG_SECRET
+                      secretRef: searxng-secret
+                  resources:
+                    cpu: 0.5
+                    memory: 1Gi
+              scale:
+                minReplicas: 1
+                maxReplicas: 3
+          EOF
+          
+          cat containerapp.yaml
+      
+      # Deploy or update the container app with sidecars using YAML config
+      - name: Deploy Container App with Sidecars
+        run: |
+          # Check if container app exists
+          if az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --output none 2>/dev/null; then
+            
+            echo "Updating existing container app with sidecars..."
+            az containerapp update \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --yaml containerapp.yaml
+          else
+            echo "Creating new container app with sidecars..."
+            az containerapp create \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --environment ${{ env.CONTAINER_ENV_NAME }} \
+              --yaml containerapp.yaml
+          fi
+      
+      # Display the deployed application URL
+      - name: Get Application URL
+        id: get_url
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            --output tsv)
+          
+          echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
+          
+          echo "=========================================="
+          echo "Deployment completed successfully!"
+          echo "=========================================="
+          echo "Application URL: https://$FQDN"
+          echo "Health check: https://$FQDN/health"
+          echo "=========================================="
+          echo ""
+          echo "Test with:"
+          echo "curl -X POST https://$FQDN/search -H 'Content-Type: application/json' -d '{\"query\":\"test\"}'"
+      
+      # Wait for application to be fully ready and verify health
+      - name: Verify Application Health
+        run: |
+          FQDN="${{ steps.get_url.outputs.fqdn }}"
+          HEALTH_URL="https://$FQDN/health"
+          
+          echo "=========================================="
+          echo "Verifying application health..."
+          echo "=========================================="
+          echo "Waiting for application to be ready (max 2 minutes)..."
+          
+          # Wait up to 120 seconds for the app to be healthy
+          MAX_ATTEMPTS=24
+          ATTEMPT=0
+          SLEEP_TIME=5
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS..."
+            
+            # Try to call the health endpoint
+            HTTP_CODE=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check PASSED!"
+              echo "Response:"
+              cat /tmp/health_response.json
+              echo ""
+              echo "=========================================="
+              echo "🎉 Deployment verified successfully!"
+              echo "=========================================="
+              echo "Application is healthy and ready to use"
+              echo "URL: https://$FQDN"
+              exit 0
+            else
+              echo "⏳ Health check returned HTTP $HTTP_CODE, waiting ${SLEEP_TIME}s..."
+              sleep $SLEEP_TIME
+            fi
+          done
+          
+          # If we get here, health check failed
+          echo "=========================================="
+          echo "❌ Health check FAILED!"
+          echo "=========================================="
+          echo "Application did not become healthy within 2 minutes"
+          echo "Please check the logs:"
+          echo "az containerapp logs show -n ${{ env.CONTAINER_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --tail 100"
+          exit 1
+

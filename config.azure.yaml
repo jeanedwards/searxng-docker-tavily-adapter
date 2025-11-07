@@ -1,0 +1,93 @@
+# Azure Container Apps Configuration for SearXNG + Tavily Adapter
+# 
+# This is a specialized config for Azure Container Apps deployment
+# where Redis and SearXNG run as SIDECARS sharing the localhost network.
+#
+# KEY DIFFERENCES from config.example.yaml:
+# - adapter.searxng_url uses localhost:8080 (sidecar, not docker service name)
+# - valkey.url uses localhost:6379 (sidecar, not docker service name)
+#
+# SETUP:
+# 1. Copy this file content to GitHub Secret CONFIG_YAML
+# 2. Update the secret_key below to a random 32+ character string
+# 3. Adjust search engines and other settings as needed
+# 4. Deploy via GitHub Actions workflow: azure-deploy.yml
+
+# =================================
+# SearXNG Configuration (root level for SearXNG sidecar)
+# =================================
+use_default_settings: true
+
+server:
+  # base_url is set via SEARXNG_BASE_URL environment variable in the sidecar
+  secret_key: "CHANGE_ME_TO_RANDOM_SECRET_KEY_32_CHARS_OR_MORE"  # REQUIRED: Change this!
+  limiter: false  # Disabled for API usage
+  image_proxy: true
+  
+# Search output formats - JSON is critical for API functionality
+search:
+  formats:
+    - html
+    - json    # Required for API!
+    - csv
+    - rss
+
+# Redis/Valkey configuration
+# NOTE: In Azure Container Apps with sidecars, Redis runs on localhost
+valkey:
+  url: redis://localhost:6379/0
+
+# Network request optimization
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  
+# Search engine configuration
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: true    # Disabled as per original config
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: startpage
+    disabled: true    # Disabled - problematic
+  - name: yacy images
+    disabled: true    # Disabled - problematic
+
+# =================================
+# Tavily Adapter Configuration  
+# =================================
+adapter:
+  # Server settings for the adapter
+  server:
+    host: "0.0.0.0"
+    port: 8000
+
+  # SearXNG connection URL
+  # NOTE: In Azure Container Apps with sidecars, SearXNG runs on localhost:8080
+  searxng_url: "http://localhost:8080"
+
+  # Web scraper configuration
+  scraper:
+    timeout: 10
+    max_content_length: 2500
+    user_agent: "Mozilla/5.0 (compatible; TavilyBot/1.0)"
+
+  # Default search parameters
+  search:
+    default_max_results: 10
+    default_engines: "google,duckduckgo,brave"
+    default_categories: "general"
+    default_language: "auto"
+    safesearch: 1
+
+  # Tavily Extract API settings
+  extract:
+    max_urls: 20            # Maximum URLs per /extract request
+    timeout_basic: 12       # Timeout (seconds) for basic mode
+    timeout_advanced: 25    # Timeout (seconds) for advanced mode
+    default_format: "markdown"
+

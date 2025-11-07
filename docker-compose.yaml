@@ -1,4 +1,17 @@
 version: "3.7"
+
+# Docker Compose configuration for local development
+# 
+# For Azure Container Apps deployment, see:
+# - .github/workflows/azure-deploy.yml (deployment workflow)
+# - config.azure.yaml (Azure-specific config with localhost URLs)
+# 
+# Key differences in Azure deployment:
+# - All containers run as sidecars sharing localhost network
+# - SearXNG URL: http://localhost:8080 (instead of http://searxng:8080)
+# - Redis URL: redis://localhost:6379 (instead of redis://redis:6379)
+# - Config injected via GitHub secret, not volume mount
+
 services:
   redis:
     container_name: redis
