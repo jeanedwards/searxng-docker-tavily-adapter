@@ -75,7 +75,7 @@ jobs:
           
           # Create the container app with main container
           # Pass config via environment variable (stored securely in Azure)
-          # Reduced resource allocation to fit within service plan: 1 vCPU, 1.75GB
+          # Using Azure Container Apps valid combination: 0.75 CPU, 1.5GB total
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -94,26 +94,26 @@ jobs:
           
           echo "Main container created. Adding sidecars..."
           
-          # Add Redis sidecar with reduced resources
+          # Add Redis sidecar with minimal resources
           echo "Adding Redis sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name redis \
             --image "docker.io/${{ env.REDIS_IMAGE }}" \
-            --cpu 0.15 \
+            --cpu 0.125 \
             --memory 0.25Gi
           
-          # Add SearXNG sidecar with reduced resources
-          # Total allocation: Main (0.5 CPU, 1.0GB) + Redis (0.15 CPU, 0.25GB) + SearXNG (0.35 CPU, 0.5GB) = 1.0 CPU, 1.75GB
+          # Add SearXNG sidecar
+          # Total allocation must be: Main (0.5 CPU, 1.0GB) + Redis (0.125 CPU, 0.25GB) + SearXNG (0.125 CPU, 0.25GB) = 0.75 CPU, 1.5GB
           echo "Adding SearXNG sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --container-name searxng \
             --image "docker.io/${{ env.SEARXNG_IMAGE }}" \
-            --cpu 0.35 \
-            --memory 0.5Gi \
+            --cpu 0.125 \
+            --memory 0.25Gi \
             --set-env-vars \
               "BIND_ADDRESS=[::]:8080" \
               "SEARXNG_BASE_URL=http://localhost:8080/" \
