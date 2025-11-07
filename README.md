@@ -111,6 +111,46 @@ results = response.json()
 }
 ```
 
+### Extract API (crawl4ai)
+
+```bash
+curl -X POST "http://localhost:8000/extract" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "urls": ["https://www.spacex.com/"],
+        "include_images": true,
+        "include_favicon": true,
+        "extract_depth": "advanced",
+        "format": "markdown"
+      }'
+```
+
+```json
+{
+  "request_id": "uuid",
+  "response_time": 2.31,
+  "results": [
+    {
+      "url": "https://www.spacex.com/",
+      "title": "SpaceX",
+      "language": "en",
+      "raw_content": "# SpaceX ...",
+      "images": [
+        {"url": "https://...", "description": "Falcon 9", "score": 0.91}
+      ],
+      "favicon": "https://www.spacex.com/favicon.ico",
+      "metadata": {"status_code": 200}
+    }
+  ],
+  "failed_results": []
+}
+```
+
+> ℹ️ Эндпоинт `/extract` использует [crawl4ai](https://github.com/unclecode/crawl4ai).  
+> - **Docker**: образ `simple_tavily_adapter` автоматически скачивает Chromium через Playwright во время сборки.  
+> - **Локально**: выполните `pip install -r simple_tavily_adapter/requirements.txt && crawl4ai-setup` (установит браузеры Playwright).  
+> Настройки лимитов и таймаутов лежат в `adapter.extract` внутри `config.yaml`.
+
 ## 🕷️ Raw Content - веб-скрапинг
 
 ### Как работает `include_raw_content`
@@ -189,6 +229,7 @@ adapter:
 # Локальная разработка адаптера
 cd simple_tavily_adapter
 pip install -r requirements.txt
+crawl4ai-setup  # один раз установите Playwright браузеры
 python main.py
 
 # Тестирование

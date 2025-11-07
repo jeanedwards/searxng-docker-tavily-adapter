@@ -23,6 +23,7 @@
    - `adapter.searxng_url` - URL для подключения к SearXNG
    - `adapter.scraper.user_agent` - User-Agent для скрапинга
    - `adapter.scraper.max_content_length` - максимальный размер raw_content
+   - `adapter.extract.*` - лимиты Tavily Extract API (макс. URL, таймауты, формат по умолчанию)
 
 ## 💡 Использование как замена Tavily
 
@@ -74,6 +75,24 @@ response = client.search(
     max_results=5,
     include_raw_content=True
 )
+```
+
+### Вариант 4: Tavily Extract API
+
+```bash
+curl -X POST "http://localhost:8000/extract" \
+     -H "Content-Type: application/json" \
+     -d '{"urls": ["https://example.com"], "include_images": true}'
+```
+
+Вернет markdown/текст страницы, список изображений и базовые метаданные. Эндпоинт работает через `crawl4ai`, поэтому:
+- **Docker**: образ адаптера скачивает браузеры Playwright при сборке (`playwright install chromium`).
+- **Локально**: один раз выполните:
+
+```bash
+cd simple_tavily_adapter
+pip install -r requirements.txt
+crawl4ai-setup  # установит Playwright браузеры
 ```
 
 ## 🔄 Миграция с Tavily
@@ -140,6 +159,10 @@ curl "http://localhost:8999/search?q=test&format=json"
 curl -X POST "http://localhost:8000/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test", "max_results": 3}'
+
+curl -X POST "http://localhost:8000/extract" \
+     -H "Content-Type: application/json" \
+     -d '{"urls": "https://example.com", "format": "text"}'
 ```
 
 ## 📊 Формат ответа

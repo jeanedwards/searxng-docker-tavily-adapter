@@ -25,6 +25,16 @@ class Config:
                         "timeout": 10,
                         "max_content_length": 2500,
                         "user_agent": "Mozilla/5.0 (compatible; TavilyBot/1.0)"
+                    },
+                    "search": {
+                        "default_max_results": 10,
+                        "default_engines": "google,duckduckgo,brave"
+                    },
+                    "extract": {
+                        "max_urls": 20,
+                        "timeout_basic": 12,
+                        "timeout_advanced": 25,
+                        "default_format": "markdown"
                     }
                 }
             }
@@ -60,6 +70,22 @@ class Config:
     @property
     def default_engines(self) -> str:
         return self._config.get("adapter", {}).get("search", {}).get("default_engines", "google,duckduckgo,brave")
+
+    @property
+    def extract_max_urls(self) -> int:
+        return self._config.get("adapter", {}).get("extract", {}).get("max_urls", 20)
+
+    @property
+    def extract_timeout_basic(self) -> int:
+        return self._config.get("adapter", {}).get("extract", {}).get("timeout_basic", 12)
+
+    @property
+    def extract_timeout_advanced(self) -> int:
+        return self._config.get("adapter", {}).get("extract", {}).get("timeout_advanced", 25)
+
+    @property
+    def extract_default_format(self) -> str:
+        return self._config.get("adapter", {}).get("extract", {}).get("default_format", "markdown")
 
 # Глобальный экземпляр конфига
 config = Config()

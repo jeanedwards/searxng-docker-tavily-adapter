@@ -78,3 +78,10 @@ adapter:
     default_categories: "general"
     default_language: "auto"
     safesearch: 1
+
+  # Настройки Tavily Extract API
+  extract:
+    max_urls: 20            # Максимум URL за один запрос /extract
+    timeout_basic: 12       # Таймаут (сек) для режима basic
+    timeout_advanced: 25    # Таймаут (сек) для advanced
+    default_format: "markdown"
