@@ -51,9 +51,10 @@ jobs:
       # Deploy or update the container app with sidecars using CLI commands
       - name: Deploy Container App with Sidecars
         run: |
-          # Write config to temporary files for secret management
-          echo "${{ secrets.CONFIG_YAML }}" > /tmp/config.yaml
-          echo "${{ secrets.SEARXNG_SECRET_KEY }}" > /tmp/searxng_secret.txt
+          # Base64 encode the config to safely pass as environment variable
+          # This avoids issues with multiline content and special characters
+          CONFIG_B64=$(echo "${{ secrets.CONFIG_YAML }}" | base64 -w 0 || echo "${{ secrets.CONFIG_YAML }}" | base64)
+          SEARXNG_SECRET="${{ secrets.SEARXNG_SECRET_KEY }}"
           
           # Check if container app exists
           if az containerapp show \
@@ -71,9 +72,10 @@ jobs:
             sleep 10
           fi
           
-          echo "Creating container app with main container and sidecars..."
+          echo "Creating container app with main container..."
           
-          # Create the container app with main container only first
+          # Create the container app with main container
+          # Using environment variables directly instead of secrets for simplicity
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -85,20 +87,11 @@ jobs:
             --memory 1Gi \
             --min-replicas 1 \
             --max-replicas 3 \
-            --secrets config-yaml="$(cat /tmp/config.yaml)" searxng-secret="$(cat /tmp/searxng_secret.txt)" \
-            --env-vars "CONFIG_YAML=secretref:config-yaml"
+            --env-vars "CONFIG_YAML=${{ secrets.CONFIG_YAML }}"
           
           echo "Main container created. Adding sidecars..."
           
-          # Get the current revision name
-          REVISION=$(az containerapp revision list \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --query '[0].name' -o tsv)
-          
-          echo "Current revision: $REVISION"
-          
-          # Add Redis sidecar using container add
+          # Add Redis sidecar
           echo "Adding Redis sidecar..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
@@ -121,10 +114,7 @@ jobs:
             --set-env-vars \
               "BIND_ADDRESS=[::]:8080" \
               "SEARXNG_BASE_URL=http://localhost:8080/" \
-              "SEARXNG_SECRET=secretref:searxng-secret"
-          
-          # Clean up temporary files
-          rm -f /tmp/config.yaml /tmp/searxng_secret.txt /tmp/containerapp-full.yaml
+              "SEARXNG_SECRET=$SEARXNG_SECRET"
           
           echo "Deployment completed!"
       
