@@ -7,19 +7,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install dependencies
+COPY requirements.txt /app/simple_tavily_adapter/requirements.txt
+RUN pip install --no-cache-dir -r /app/simple_tavily_adapter/requirements.txt
 
 # Скачиваем браузеры Playwright для crawl4ai
 # Скачиваем браузеры Playwright + системные зависимости
 RUN python -m playwright install --with-deps chromium
 
-COPY . .
+# Copy all package files into proper package structure
+COPY . /app/simple_tavily_adapter/
 
 # Make entrypoint script executable
-RUN chmod +x entrypoint.sh
+RUN chmod +x /app/simple_tavily_adapter/entrypoint.sh
 
 EXPOSE 8000
 
 # Use entrypoint script to handle config injection for Azure deployment
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/simple_tavily_adapter/entrypoint.sh"]

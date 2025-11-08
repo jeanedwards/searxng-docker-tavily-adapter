@@ -1,7 +1,18 @@
 """
 Тест для проверки совместимости с оригинальным Tavily API
+
+Run from package root:
+    python -m simple_tavily_adapter.test_client
+
+Or inside Docker container:
+    docker compose exec tavily-adapter python -m simple_tavily_adapter.test_client
 """
-from tavily_client import TavilyClient
+try:
+    # Try relative import first (when run as module)
+    from .tavily_client import TavilyClient
+except ImportError:
+    # Fall back to absolute import (when run as script)
+    from tavily_client import TavilyClient
 
 # Тест совместимости с оригинальным API
 client = TavilyClient(api_key="fake-key")  # API ключ не используется

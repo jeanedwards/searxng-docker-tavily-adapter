@@ -11,7 +11,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
-from config_loader import config
+from .config_loader import config
 
 
 class TavilyResult(BaseModel):
