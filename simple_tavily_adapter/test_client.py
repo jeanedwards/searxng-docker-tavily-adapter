@@ -1,10 +1,10 @@
 """
-Тест для проверки совместимости с оригинальным Tavily API
+Compatibility smoke test for the Tavily adapter.
 
 Run from package root:
     python -m simple_tavily_adapter.test_client
 
-Or inside Docker container:
+Or inside Docker:
     docker compose exec tavily-adapter python -m simple_tavily_adapter.test_client
 """
 try:
@@ -14,10 +14,10 @@ except ImportError:
     # Fall back to absolute import (when run as script)
     from tavily_client import TavilyClient
 
-# Тест совместимости с оригинальным API
-client = TavilyClient(api_key="fake-key")  # API ключ не используется
+# Compatibility check against the original API contract
+client = TavilyClient(api_key="fake-key")  # Adapter ignores the API key
 response = client.search(
-    query="цена bmw x6",
+    query="bmw x6 price",
     include_raw_content=True
 )
 

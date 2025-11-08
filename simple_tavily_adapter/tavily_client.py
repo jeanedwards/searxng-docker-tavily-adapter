@@ -34,11 +34,11 @@ class TavilyResponse(BaseModel):
 
 class TavilyClient:
     def __init__(self, api_key: str = "", searxng_url: str | None = None):
-        self.api_key = api_key  # Не используется, но сохраняем для совместимости
+        self.api_key = api_key  # Stored for API compatibility but never used
         self.searxng_url = (searxng_url or config.searxng_url).rstrip('/')
     
     async def _fetch_raw_content(self, session: aiohttp.ClientSession, url: str) -> str | None:
-        """Скрапит страницу и возвращает первые 2500 символов текста"""
+        """Scrape the page and return the first 2500 characters of text."""
         try:
             async with session.get(
                 url,
@@ -51,14 +51,14 @@ class TavilyClient:
                 html = await response.text()
                 soup = BeautifulSoup(html, 'html.parser')
                 
-                # Удаляем ненужное
+                # Remove layout and script-heavy nodes for cleaner text
                 for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
                     tag.decompose()
                 
-                # Берем текст
+                # Extract text content
                 text = soup.get_text(separator=' ', strip=True)
                 
-                # Обрезаем до настроенного размера
+                # Trim to configured maximum length
                 if len(text) > config.scraper_max_length:
                     text = text[:config.scraper_max_length] + "..."
                 
@@ -90,20 +90,20 @@ class TavilyClient:
         start_time = time.time()
         request_id = str(uuid.uuid4())
         
-        # Формируем запрос к SearXNG
+        # Build SearXNG request payload
         searxng_params = {
             "q": query,
             "format": "json",
             "categories": "general",
-            "engines": "google,duckduckgo,brave",  # Убрали Bing
+            "engines": "google,duckduckgo,brave",  # Bing removed for stability
             "pageno": 1,
             "language": "auto",
             "safesearch": 1,
         }
         
-# Убрали обработку доменов - не нужно для упрощенного API
+# Domain filtering removed to keep the API surface minimal
         
-        # Добавляем заголовки для обхода блокировки SearXNG
+        # Extra headers help SearXNG bypass rate limiting and blocking
         headers = {
             'X-Forwarded-For': '127.0.0.1',
             'X-Real-IP': '127.0.0.1',
@@ -121,7 +121,7 @@ class TavilyClient:
                 ) as response:
                     searxng_data = await response.json()
             except Exception as e:
-                # Возвращаем пустой результат в случае ошибки
+                # Return an empty result set on failure
                 return TavilyResponse(
                     query=query,
                     results=[],
@@ -129,11 +129,11 @@ class TavilyClient:
                     request_id=request_id,
                 ).model_dump()
         
-        # Конвертируем результаты SearXNG в формат Tavily
+        # Convert SearXNG payload into Tavily-format results
         results = []
         searxng_results = searxng_data.get("results", [])
         
-        # Если нужен raw_content, скрапим страницы
+        # Scrape additional raw content when requested
         raw_contents = {}
         if include_raw_content and searxng_results:
             urls_to_scrape = [r["url"] for r in searxng_results[:max_results] if r.get("url")]
@@ -158,7 +158,7 @@ class TavilyClient:
                 url=result["url"],
                 title=result.get("title", ""),
                 content=result.get("content", ""),
-                score=0.9 - (i * 0.05),  # Простая имитация скора
+                score=0.9 - (i * 0.05),  # Simple heuristic score placeholder
                 raw_content=raw_content
             )
             results.append(tavily_result)

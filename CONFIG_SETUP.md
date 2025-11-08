@@ -1,83 +1,83 @@
 # SearXNG Tavily Adapter
 
-**Tavily-совместимая обертка для SearXNG** - используйте SearXNG с тем же API что и у Tavily!
+**Tavily-compatible wrapper for SearXNG** — use SearXNG with the same API Tavily provides!
 
-## 🚀 Быстрая настройка
+## 🚀 Quick setup
 
-1. **Скопируйте пример конфигурации:**
+1. **Copy the example configuration:**
    ```bash
    cp config.example.yaml config.yaml
    ```
 
-2. **Отредактируйте config.yaml:**
+2. **Edit config.yaml:**
    ```bash
    nano config.yaml
-   # или
+   # or
    code config.yaml
    ```
 
-3. **Обязательно поменяйте:**
-   - `server.secret_key` - секретный ключ для SearXNG (минимум 32 символа)
+3. **You must update:**
+- `server.secret_key` — secret key for SearXNG (minimum 32 characters)
    
-4. **Опционально настройте:**
-   - `adapter.searxng_url` - URL для подключения к SearXNG
-   - `adapter.scraper.user_agent` - User-Agent для скрапинга
-   - `adapter.scraper.max_content_length` - максимальный размер raw_content
-   - `adapter.extract.*` - лимиты Tavily Extract API (макс. URL, таймауты, формат по умолчанию)
+4. **Optional tweaks:**
+- `adapter.searxng_url` — endpoint used to reach SearXNG
+- `adapter.scraper.user_agent` — User-Agent header for scraping
+- `adapter.scraper.max_content_length` — maximum raw content size
+- `adapter.extract.*` — Tavily Extract API limits (URL cap, timeouts, default format)
 
-## 💡 Использование как замена Tavily
+## 💡 Using it as a Tavily drop-in
 
-### Вариант 1: Python клиент (локальный)
+### Option 1: Python client (local)
 
 ```python
-# Вместо: from tavily import TavilyClient
+# Replace the original import
 from simple_tavily_adapter.tavily_client import TavilyClient
 
-# Используете точно так же как оригинальный Tavily!
-client = TavilyClient()  # API ключ не нужен
+# Use it exactly like the original Tavily client
+client = TavilyClient()  # API key not required
 response = client.search(
-    query="цена bitcoin",
+    query="bitcoin price",
     max_results=5,
     include_raw_content=True
 )
 print(response)
 ```
 
-### Вариант 2: Через HTTP API
+### Option 2: Call the HTTP API
 
 ```python
 import requests
 
 response = requests.post("http://localhost:8000/search", json={
-    "query": "цена bitcoin",
+    "query": "bitcoin price",
     "max_results": 5,
     "include_raw_content": True
 })
 print(response.json())
 ```
 
-### Вариант 3: Замена base_url в оригинальном Tavily
+### Option 3: Switch base_url in the official Tavily client
 
 ```python
-# Установите оригинальный клиент
+# Install the official client
 # pip install tavily-python
 
 from tavily import TavilyClient
 
-# Поменяйте только base_url!
+# Change only the base_url
 client = TavilyClient(
-    api_key="не_важно",  # Ключ игнорируется
-    base_url="http://localhost:8000"  # Ваш адаптер
+    api_key="unused",  # Key is ignored
+    base_url="http://localhost:8000"  # Point to your adapter
 )
 
 response = client.search(
-    query="цена bitcoin",
+    query="bitcoin price",
     max_results=5,
     include_raw_content=True
 )
 ```
 
-### Вариант 4: Tavily Extract API
+### Option 4: Tavily Extract API
 
 ```bash
 curl -X POST "http://localhost:8000/extract" \
@@ -85,56 +85,56 @@ curl -X POST "http://localhost:8000/extract" \
      -d '{"urls": ["https://example.com"], "include_images": true}'
 ```
 
-Вернет markdown/текст страницы, список изображений и базовые метаданные. Эндпоинт работает через `crawl4ai`, поэтому:
-- **Docker**: образ адаптера скачивает браузеры Playwright при сборке (`playwright install chromium`).
-- **Локально**: один раз выполните:
+Returns markdown/text content, image metadata, and basic page info. The endpoint uses `crawl4ai`, so:
+- **Docker**: the adapter image downloads Playwright Chromium during build (`playwright install chromium`).
+- **Local**: run once:
 
 ```bash
 cd simple_tavily_adapter
 pip install -r requirements.txt
-crawl4ai-setup  # установит Playwright браузеры
+crawl4ai-setup  # installs Playwright browsers
 ```
 
-## 🔄 Миграция с Tavily
+## 🔄 Migrating from Tavily
 
-Замените в своем коде:
+Update your code as follows:
 
 ```python
-# Было:
+# Before:
 # client = TavilyClient("tvly-xxxxxxx")
 
-# Стало:
-client = TavilyClient()  # Без API ключа
-# ИЛИ
+# After:
+client = TavilyClient()  # No API key needed
+# OR
 client = TavilyClient(base_url="http://localhost:8000")
 ```
 
-Остальной код **остается без изменений**!
+Everything else **stays exactly the same**.
 
-## Генерация секретного ключа
+## Generating a secret key
 
 ```bash
-# Способ 1: Python
+# Option 1: Python
 python3 -c "import secrets; print(secrets.token_hex(32))"
 
-# Способ 2: OpenSSL
+# Option 2: OpenSSL
 openssl rand -hex 32
 
-# Способ 3: /dev/urandom
+# Option 3: /dev/urandom
 head -c 32 /dev/urandom | xxd -p -c 32
 ```
 
-## Структура конфигурации
+## Configuration structure
 
 ```yaml
-# SearXNG настройки (корневой уровень)
+# SearXNG settings (root level)
 use_default_settings: true
 server:
-  secret_key: "ВАШ_СЕКРЕТНЫЙ_КЛЮЧ"
+  secret_key: "YOUR_SECRET_KEY"
 search:
   formats: [html, json, csv, rss]
 
-# Tavily Adapter настройки
+# Tavily Adapter settings
 adapter:
   searxng_url: "http://searxng:8080"
   server:
@@ -143,19 +143,19 @@ adapter:
     max_content_length: 2500
 ```
 
-## Запуск
+## Launch
 
 ```bash
 docker-compose up -d
 ```
 
-## ✅ Проверка работы
+## ✅ Verify everything works
 
 ```bash
 # SearXNG
 curl "http://localhost:8999/search?q=test&format=json"
 
-# Tavily Adapter  
+# Tavily Adapter
 curl -X POST "http://localhost:8000/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test", "max_results": 3}'
@@ -165,13 +165,13 @@ curl -X POST "http://localhost:8000/extract" \
      -d '{"urls": "https://example.com", "format": "text"}'
 ```
 
-## 📊 Формат ответа
+## 📊 Response format
 
-Полностью совместим с Tavily API:
+Fully compatible with the Tavily API:
 
 ```json
 {
-  "query": "цена bitcoin",
+  "query": "bitcoin price",
   "follow_up_questions": null,
   "answer": null,
   "images": [],
@@ -189,10 +189,10 @@ curl -X POST "http://localhost:8000/extract" \
 }
 ```
 
-## 🎯 Преимущества
+## 🎯 Benefits
 
-- ✅ **Бесплатно** - без API ключей и лимитов
-- ✅ **Приватность** - поиск через ваш SearXNG
-- ✅ **Совместимость** - точно такой же API как у Tavily
-- ✅ **Скорость** - локальное развертывание
-- ✅ **Контроль** - настройте движки под себя
+- ✅ **Free** — no API keys or request limits
+- ✅ **Private** — searches run through your SearXNG instance
+- ✅ **Compatible** — identical API to Tavily
+- ✅ **Fast** — local deployment
+- ✅ **In control** — choose and tune search engines

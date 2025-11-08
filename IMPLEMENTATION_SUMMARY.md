@@ -68,7 +68,7 @@ Successfully implemented a complete Azure Container Apps deployment solution wit
 
 ### 3. `README.md`
 **Changes**:
-- Added new section: "☁️ Развертывание в Azure Container Apps"
+- Added new section: "☁️ Deployment to Azure Container Apps"
 - Documented prerequisites (Azure Service Principal, GitHub Secrets)
 - Added configuration setup instructions
 - Provided deployment workflow steps

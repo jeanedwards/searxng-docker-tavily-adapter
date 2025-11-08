@@ -35,9 +35,9 @@ services:
     networks:
       - searxng
     ports:
-      - "0.0.0.0:8999:8080"  # Ваш порт 8999
+      - "0.0.0.0:8999:8080"  # Expose SearXNG on host port 8999
     volumes:
-      - ./config.yaml:/etc/searxng/settings.yml:ro  # Используем единый конфиг (скопируйте из config.example.yaml)
+      - ./config.yaml:/etc/searxng/settings.yml:ro  # Shared unified config (copy from config.example.yaml)
       - searxng-data:/var/cache/searxng:rw
     environment:
       - SEARXNG_BASE_URL=http://localhost:8999/
@@ -57,7 +57,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./config.yaml:/srv/searxng-docker/config.yaml:ro  # Используем единый конфиг (скопируйте из config.example.yaml)
+      - ./config.yaml:/srv/searxng-docker/config.yaml:ro  # Shared unified config (copy from config.example.yaml)
     depends_on:
       - searxng
     healthcheck:

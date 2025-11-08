@@ -128,5 +128,5 @@ class Config:
     def extract_default_format(self) -> str:
         return self._config.get("adapter", {}).get("extract", {}).get("default_format", "markdown")
 
-# Глобальный экземпляр конфига
+# Global config singleton used across the adapter
 config = Config()
