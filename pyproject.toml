@@ -1,0 +1,74 @@
+[project]
+name = "searxng-tavily-adapter"
+version = "1.0.0"
+description = "Tavily-compatible API powered by SearXNG and Crawl4AI"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+# Core runtime dependencies
+# These are the packages needed to run the adapter
+dependencies = [
+    "fastapi>=0.121.0",          # Modern web framework for building APIs
+    "uvicorn[standard]>=0.24.0", # ASGI server with WebSocket support
+    "aiohttp>=3.11.11",          # Async HTTP client for SearXNG requests
+    "pydantic>=2.10",            # Data validation using Python type hints
+    "beautifulsoup4>=4.12.2",    # HTML parsing for web scraping
+    "pyyaml>=6.0.1",             # YAML config file parsing
+    "crawl4ai>=0.7.6",           # Advanced web crawling and extraction
+]
+
+# Development dependencies
+# Use: uv sync --group dev
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",             # Testing framework
+    "pytest-asyncio>=0.24.0",    # Async test support
+    "httpx>=0.27.0",             # Testing HTTP requests
+    "ruff>=0.8.0",               # Fast Python linter and formatter
+]
+
+# Build system configuration
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Project URLs and metadata
+[project.urls]
+Homepage = "https://github.com/vakovalskii/searxng-docker-tavily-adapter"
+Repository = "https://github.com/vakovalskii/searxng-docker-tavily-adapter"
+
+# UV-specific configuration
+[tool.uv]
+# This is not a library to be published, just an application
+package = false
+
+# Development sources configuration
+[tool.uv.sources]
+
+# Ruff linter configuration
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# Ruff linting rules
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+# Pytest configuration
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+

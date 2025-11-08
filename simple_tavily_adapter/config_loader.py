@@ -1,5 +1,11 @@
 """
-Configuration loader for Tavily adapter
+Configuration loader for Tavily adapter.
+
+Looks for config.yaml in this order:
+1. Environment variable CONFIG_PATH
+2. ./config.yaml (local development)
+3. /srv/searxng-docker/config.yaml (Docker)
+4. Falls back to default config
 """
 import os
 import yaml
@@ -7,38 +13,68 @@ from pathlib import Path
 from typing import Dict, Any
 
 class Config:
-    def __init__(self, config_path: str = "/srv/searxng-docker/config.yaml"):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: str = None):
+        # Determine config path in order of priority
+        if config_path:
+            # Explicitly provided path
+            self.config_path = Path(config_path)
+        elif os.getenv("CONFIG_PATH"):
+            # Environment variable override
+            self.config_path = Path(os.getenv("CONFIG_PATH"))
+        elif Path("./config.yaml").exists():
+            # Local development (project root)
+            self.config_path = Path("./config.yaml")
+        elif Path("/srv/searxng-docker/config.yaml").exists():
+            # Docker container path
+            self.config_path = Path("/srv/searxng-docker/config.yaml")
+        else:
+            # No config found, will use defaults
+            self.config_path = None
+        
         self._config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from unified YAML file"""
-        try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
-        except FileNotFoundError:
-            # Fallback to default config
-            return {
-                "adapter": {
-                    "searxng_url": "http://searxng:8080",
-                    "server": {"host": "0.0.0.0", "port": 8000},
-                    "scraper": {
-                        "timeout": 10,
-                        "max_content_length": 2500,
-                        "user_agent": "Mozilla/5.0 (compatible; TavilyBot/1.0)"
-                    },
-                    "search": {
-                        "default_max_results": 10,
-                        "default_engines": "google,duckduckgo,brave"
-                    },
-                    "extract": {
-                        "max_urls": 20,
-                        "timeout_basic": 12,
-                        "timeout_advanced": 25,
-                        "default_format": "markdown"
-                    }
+        """
+        Load configuration from unified YAML file.
+        
+        Returns default config if file not found.
+        """
+        if self.config_path and self.config_path.exists():
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config_data = yaml.safe_load(f)
+                    print(f"✓ Loaded config from: {self.config_path}")
+                    return config_data
+            except Exception as e:
+                print(f"✗ Error loading config from {self.config_path}: {e}")
+        else:
+            print(f"⚠ Config file not found, using defaults (searxng:8080)")
+            if self.config_path:
+                print(f"  Tried: {self.config_path}")
+        
+        # Return default config if file not found or error occurred
+        # Fallback to default config (Docker-oriented)
+        return {
+            "adapter": {
+                "searxng_url": "http://searxng:8080",
+                "server": {"host": "0.0.0.0", "port": 8000},
+                "scraper": {
+                    "timeout": 10,
+                    "max_content_length": 2500,
+                    "user_agent": "Mozilla/5.0 (compatible; TavilyBot/1.0)"
+                },
+                "search": {
+                    "default_max_results": 10,
+                    "default_engines": "google,duckduckgo,brave"
+                },
+                "extract": {
+                    "max_urls": 20,
+                    "timeout_basic": 12,
+                    "timeout_advanced": 25,
+                    "default_format": "markdown"
                 }
             }
+        }
     
     @property
     def searxng_url(self) -> str:

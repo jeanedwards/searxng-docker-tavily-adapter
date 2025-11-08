@@ -1,5 +1,6 @@
 # Конфигурационные файлы с чувствительными данными
 config.yaml
+# Note: config.local.yaml and config.example.yaml should be committed
 
 # SearXNG данные
 searxng-data/
@@ -36,6 +37,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# uv package manager
+.venv/                # Virtual environment created by uv
+.python-version.bak
+# Note: uv.lock should be committed for reproducible builds
 
 # Environment variables
 .env.local

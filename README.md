@@ -8,6 +8,8 @@
 
 ## 🚀 Быстрый старт
 
+### 🐳 Docker (production-ready)
+
 ```bash
 # 1. Клонирование
 git clone git@github.com:vakovalskii/searxng-docker-tavily-adapter.git
@@ -26,6 +28,38 @@ curl -X POST "http://localhost:8000/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "цена bitcoin", "max_results": 3}'
 ```
+
+### 💻 Локальная разработка (uv)
+
+```bash
+# 1. Клонирование
+git clone https://github.com/vakovalskii/searxng-docker-tavily-adapter.git
+cd searxng-docker-tavily-adapter
+
+# 2. Автоматическая настройка
+./setup-local.sh     # macOS/Linux
+# или
+.\setup-local.ps1    # Windows
+
+# 3. Запуск Docker сервисов (SearXNG + Redis)
+make docker-up       # Запускает с правильными портами для локальной разработки
+
+# 4. Запуск адаптера локально
+make run             # Подключится к SearXNG через localhost:8999
+
+# Или поэтапно:
+# uv sync              # установка зависимостей
+# cp config.local.yaml config.yaml  # конфиг для локальной разработки
+# make docker-up       # запуск Docker сервисов
+# make run             # запуск адаптера
+```
+
+📖 **Подробное руководство**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
+
+**Важно для локальной разработки**: 
+- Используйте `config.local.yaml` как основу для `config.yaml` (настроен для localhost:8999)
+- `make docker-up` автоматически настраивает правильные порты для доступа из хоста
+- Адаптер подключается к SearXNG через `http://localhost:8999`
 
 ## ☁️ Развертывание в Azure Container Apps
 
@@ -334,6 +368,33 @@ adapter:
 
 ## 🔧 Разработка
 
+### Локальная разработка с uv (рекомендуется)
+
+```bash
+# Установите uv (если еще не установлен)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Установите зависимости и создайте виртуальное окружение
+uv sync
+
+# Установите браузеры Playwright для /extract endpoint
+source .venv/bin/activate
+crawl4ai-setup
+
+# Запустите SearXNG через Docker
+docker compose up -d searxng redis
+
+# Запустите адаптер локально с hot-reload
+uv run uvicorn simple_tavily_adapter.main:app --reload --port 8000
+
+# Тестирование
+uv run python simple_tavily_adapter/test_client.py
+```
+
+📖 **Полное руководство**: см. [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
+
+### Традиционный способ (pip)
+
 ```bash
 # Локальная разработка адаптера
 cd simple_tavily_adapter
@@ -344,6 +405,21 @@ python main.py
 # Тестирование
 python test_client.py
 ```
+
+## 📚 Документация
+
+### Локальная разработка
+- **[LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)** - Полное руководство по локальной разработке с uv
+- **[UV_CHEATSHEET.md](UV_CHEATSHEET.md)** - Краткая справка по командам uv
+- **[UV_MIGRATION_NOTES.md](UV_MIGRATION_NOTES.md)** - Заметки о миграции на uv
+- **[NETWORKING_GUIDE.md](NETWORKING_GUIDE.md)** - Настройка сети для локальной разработки
+
+### Конфигурация и развертывание
+- **[CONFIG_SETUP.md](CONFIG_SETUP.md)** - Настройка конфигурации
+- **[AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)** - Развертывание в Azure
+
+### Тестирование
+- **[TESTING_RAW_CONTENT.md](TESTING_RAW_CONTENT.md)** - Тестирование скрапинга
 
 ## 📜 Лицензия
 

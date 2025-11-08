@@ -1,0 +1,87 @@
+# Local Development Configuration
+# 
+# This config is optimized for running the adapter LOCALLY (not in Docker)
+# while SearXNG and Redis run in Docker containers.
+#
+# Key differences from config.example.yaml:
+# - searxng_url uses localhost:8999 (not Docker internal network)
+# - Can be used as a reference or copied to config.yaml
+#
+# Usage:
+# 1. Copy to config.yaml: cp config.local.yaml config.yaml
+# 2. Update secret_key
+# 3. Start Docker services: make docker-up
+# 4. Run adapter locally: make run
+
+# =================================
+# SearXNG Configuration
+# =================================
+use_default_settings: true
+
+server:
+  secret_key: "CHANGE_ME_TO_RANDOM_SECRET_KEY_32_CHARS_OR_MORE"  # REQUIRED: Change this!
+  limiter: false
+  image_proxy: true
+  
+search:
+  formats:
+    - html
+    - json    # Required for API
+    - csv
+    - rss
+
+# Redis/Valkey settings
+redis:
+  url: redis://redis:6379/0
+
+# UI settings
+ui:
+  static_use_hash: true
+  default_locale: "ru"
+  query_in_title: true
+
+# Search engines configuration
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: true
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: startpage
+    disabled: true
+  - name: yacy images
+    disabled: true
+
+# =================================
+# Tavily Adapter Configuration - LOCAL DEVELOPMENT
+# =================================
+adapter:
+  server:
+    host: "0.0.0.0"
+    port: 8000
+
+  # IMPORTANT: Use localhost URL when running adapter locally
+  # Docker containers expose SearXNG on port 8999
+  searxng_url: "http://localhost:8999"
+
+  scraper:
+    timeout: 10
+    max_content_length: 2500
+    user_agent: "Mozilla/5.0 (compatible; TavilyBot/1.0)"
+
+  search:
+    default_max_results: 10
+    default_engines: "google,duckduckgo,brave"
+    default_categories: "general"
+    default_language: "auto"
+    safesearch: 1
+
+  extract:
+    max_urls: 20
+    timeout_basic: 12
+    timeout_advanced: 25
+    default_format: "markdown"
+

@@ -1,0 +1,29 @@
+# Docker Compose override for LOCAL DEVELOPMENT
+#
+# This file is used when running the adapter LOCALLY (not in Docker)
+# It exposes necessary ports and uses host networking where needed.
+#
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.local.yaml up -d
+# Or simply: make docker-up (Makefile uses this automatically)
+
+version: "3.7"
+
+services:
+  redis:
+    # Expose Redis port for local adapter access (if needed in future)
+    ports:
+      - "127.0.0.1:6379:6379"
+  
+  searxng:
+    # Already exposed in base compose file
+    # Port 8999 maps to container's 8080
+    # Local adapter should use: http://localhost:8999
+    ports:
+      - "0.0.0.0:8999:8080"
+
+  # Don't start the adapter container in local development
+  # We run it directly with: uv run uvicorn ...
+  tavily-adapter:
+    profiles:
+      - donotstart  # This prevents the container from starting
+
