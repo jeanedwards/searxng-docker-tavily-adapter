@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 
 from .models import SearchRequest, ExtractRequest
 from .services import SearchService, ExtractService
@@ -75,4 +76,19 @@ async def health() -> dict[str, str]:
         Dictionary with status and service name
     """
     return {"status": "ok", "service": "searxng-tavily-adapter"}
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt() -> str:
+    """
+    Robots exclusion file route.
+    
+    Returns a static robots.txt that tells crawlers to skip all paths.
+    This keeps search engines from indexing any endpoint of the adapter.
+    
+    Returns:
+        Simple string with robots directives
+    """
+    # Disallow everything so crawlers stay away from the API.
+    return "User-agent: *\nDisallow: /"
 

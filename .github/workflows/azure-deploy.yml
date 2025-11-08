@@ -198,6 +198,19 @@ jobs:
           echo "Test with:"
           echo "curl -X POST https://$FQDN/search -H 'Content-Type: application/json' -d '{\"query\":\"test\"}'"
       
+      # Add deployment summary details to the GitHub Actions job summary tab
+      - name: Publish Deployment Summary
+        run: |
+          FQDN="${{ steps.get_url.outputs.fqdn }}"
+          
+          # Document the live site URLs for quick reference after deployment
+          {
+            echo "## Deployment Summary"
+            echo ""
+            echo "- Application URL: https://${FQDN}"
+            echo "- Health check: https://${FQDN}/health"
+          } >> "$GITHUB_STEP_SUMMARY"
+      
       # Wait for application to be fully ready and verify health
       - name: Verify Application Health
         run: |
