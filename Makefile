@@ -28,9 +28,10 @@ help:
 	@echo "  make list               - List installed packages"
 	@echo "  make tree               - Show dependency tree"
 	@echo "  make update             - Update all dependencies"
+	@echo "  make requirements       - Generate requirements.txt for Docker"
 	@echo ""
 	@echo "Note: Playwright browsers (for /extract) are auto-installed with install-dev"
-	@echo "      Or manually: source .venv/bin/activate && playwright install chromium"
+	@echo "      requirements.txt is auto-generated in CI/CD from pyproject.toml"
 	@echo ""
 
 # Run automated setup script
@@ -185,4 +186,13 @@ config:
 	else \
 		echo "⚠️  config.yaml already exists"; \
 	fi
+
+# Generate requirements.txt from pyproject.toml (for Docker builds)
+requirements:
+	@echo "📦 Generating requirements.txt from pyproject.toml..."
+	@uv pip compile pyproject.toml -o simple_tavily_adapter/requirements.txt
+	@echo "✓ requirements.txt generated at: simple_tavily_adapter/requirements.txt"
+	@echo ""
+	@echo "Contents:"
+	@head -20 simple_tavily_adapter/requirements.txt
 

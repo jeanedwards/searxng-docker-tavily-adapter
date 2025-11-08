@@ -248,20 +248,22 @@ docker compose ps
 
 ### When to Update requirements.txt
 
-Only update `simple_tavily_adapter/requirements.txt` when:
-1. Docker build needs new package
-2. After adding dependency with `uv add`
-3. Manually: Copy from `pyproject.toml` dependencies section
+**Important**: `requirements.txt` is auto-generated in CI/CD from `pyproject.toml`.
 
-### Keeping Files in Sync
+**In CI/CD**: Automatically generated during Docker image build
+**Locally** (if needed): Run `make requirements`
 
 ```bash
 # After adding dependencies with uv
 uv add new-package
 
-# Update requirements.txt for Docker
-uv pip freeze > simple_tavily_adapter/requirements.txt
+# Generate requirements.txt for Docker (optional, CI/CD does this)
+make requirements
+# or manually:
+uv pip compile pyproject.toml -o simple_tavily_adapter/requirements.txt
 ```
+
+**Note**: The `requirements.txt` file in the repo serves as a fallback. CI/CD regenerates it from `pyproject.toml` before building Docker images.
 
 ## 🔄 Git Workflow
 

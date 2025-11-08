@@ -4,6 +4,12 @@ name: Deploy to Azure Container Apps
 on:
   workflow_dispatch:
 
+# Cancel in-progress deployment if a new one is started
+# Important: This prevents multiple simultaneous deployments to Azure
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 env:
   # Azure resource configuration
   RESOURCE_GROUP: RG-GBLI-AI-Risk-Insights

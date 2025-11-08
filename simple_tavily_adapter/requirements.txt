@@ -1,3 +1,11 @@
+# This file is used by Docker builds
+# Source of truth: pyproject.toml in project root
+# 
+# In CI/CD, this file is auto-generated from pyproject.toml using:
+#   uv pip compile pyproject.toml -o simple_tavily_adapter/requirements.txt
+#
+# For local development, use: uv sync (uses pyproject.toml directly)
+#
 fastapi==0.121.0
 uvicorn[standard]==0.24.0
 aiohttp>=3.11.11
