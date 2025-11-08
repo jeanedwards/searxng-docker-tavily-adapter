@@ -57,34 +57,69 @@ class ExtractResponse(BaseModel):
     failed_results: list[dict[str, str]] = Field(default_factory=list)
 
 
-async def fetch_raw_content(session: aiohttp.ClientSession, url: str) -> str | None:
-    """Скрапит страницу и возвращает первые 2500 символов текста"""
+def _build_search_crawl_config() -> CrawlerRunConfig:
+    """
+    Creates a lightweight CrawlerRunConfig optimized for search result scraping.
+    Uses fast settings to balance speed and reliability.
+    """
+    timeout_ms = int(config.scraper_timeout * 1000)
+    return CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS,
+        check_robots_txt=True,
+        remove_overlay_elements=True,
+        process_iframes=False,  # Fast mode: skip iframes
+        word_count_threshold=12,  # Basic extraction threshold
+        page_timeout=timeout_ms,
+        delay_before_return_html=0.0,  # No delay for speed
+    )
+
+
+async def fetch_raw_content_crawl4ai(
+    crawler: AsyncWebCrawler, 
+    url: str, 
+    config_obj: CrawlerRunConfig
+) -> tuple[str | None, str | None]:
+    """
+    Scrapes a page using Crawl4AI and returns markdown content.
+    
+    Args:
+        crawler: AsyncWebCrawler instance
+        url: URL to scrape
+        config_obj: CrawlerRunConfig for the crawl
+    
+    Returns:
+        Tuple of (markdown_content, error_message)
+        - On success: (markdown_string, None)
+        - On failure: (None, error_description)
+    """
     try:
-        async with session.get(
-            url,
-            timeout=aiohttp.ClientTimeout(total=config.scraper_timeout),
-            headers={'User-Agent': config.scraper_user_agent}
-        ) as response:
-            if response.status != 200:
-                return None
-            
-            html = await response.text()
-            soup = BeautifulSoup(html, 'html.parser')
-            
-            # Удаляем ненужное
-            for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
-                tag.decompose()
-            
-            # Берем текст
-            text = soup.get_text(separator=' ', strip=True)
-            
-            # Обрезаем до настроенного размера
-            if len(text) > config.scraper_max_length:
-                text = text[:config.scraper_max_length] + "..."
-            
-            return text
-    except Exception:
-        return None
+        # Execute crawl with timeout
+        crawl_future = crawler.arun(url=url, config=config_obj)
+        crawl_result = await asyncio.wait_for(
+            crawl_future,
+            timeout=config.scraper_timeout + 2,
+        )
+    except asyncio.TimeoutError:
+        return None, "timeout"
+    except Exception as exc:
+        logger.warning(f"Crawl error for {url}: {exc}")
+        return None, "crawl_failed"
+    
+    # Check if crawl was successful
+    if not getattr(crawl_result, "success", False):
+        error_msg = getattr(crawl_result, "error_message", "unknown_error") or "unknown_error"
+        return None, error_msg
+    
+    # Extract markdown content
+    markdown = _safe_markdown(getattr(crawl_result, "markdown", None))
+    if not markdown:
+        return None, "no_content"
+    
+    # Truncate to configured max length
+    if len(markdown) > config.scraper_max_length:
+        markdown = markdown[:config.scraper_max_length] + "..."
+    
+    return markdown, None
 
 
 def _markdown_to_text(markdown: str) -> str:
@@ -321,18 +356,56 @@ async def search(request: SearchRequest) -> dict[str, Any]:
     results = []
     searxng_results = searxng_data.get("results", [])
     
-    # Если нужен raw_content, скрапим страницы
+    # Если нужен raw_content, скрапим страницы с Crawl4AI
     raw_contents = {}
+    scraping_stats = {"total": 0, "success": 0, "failed": 0, "errors": {}}
+    
     if request.include_raw_content and searxng_results:
         urls_to_scrape = [r["url"] for r in searxng_results[:request.max_results] if r.get("url")]
+        scraping_stats["total"] = len(urls_to_scrape)
         
-        async with aiohttp.ClientSession() as scrape_session:
-            tasks = [fetch_raw_content(scrape_session, url) for url in urls_to_scrape]
-            page_contents = await asyncio.gather(*tasks, return_exceptions=True)
+        # Initialize Crawl4AI crawler and config
+        crawl_config = _build_search_crawl_config()
+        
+        async with AsyncWebCrawler() as crawler:
+            # Create parallel crawl tasks for all URLs
+            tasks = [
+                fetch_raw_content_crawl4ai(crawler, url, crawl_config) 
+                for url in urls_to_scrape
+            ]
+            crawl_results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            for url, content in zip(urls_to_scrape, page_contents):
-                if isinstance(content, str) and content:
+            # Process results and collect statistics
+            for url, crawl_result in zip(urls_to_scrape, crawl_results):
+                if isinstance(crawl_result, Exception):
+                    # Handle unexpected exceptions
+                    logger.warning(f"Unexpected error scraping {url}: {crawl_result}")
+                    scraping_stats["failed"] += 1
+                    error_type = type(crawl_result).__name__
+                    errors_dict = scraping_stats["errors"]
+                    if isinstance(errors_dict, dict):
+                        errors_dict[error_type] = errors_dict.get(error_type, 0) + 1
+                    continue
+                
+                content, error = crawl_result
+                if content:
+                    # Success: store markdown content
                     raw_contents[url] = content
+                    scraping_stats["success"] += 1
+                else:
+                    # Failed: log the error reason
+                    scraping_stats["failed"] += 1
+                    error_type = error or "unknown"
+                    errors_dict = scraping_stats["errors"]
+                    if isinstance(errors_dict, dict):
+                        errors_dict[error_type] = errors_dict.get(error_type, 0) + 1
+                    logger.debug(f"Failed to scrape {url}: {error_type}")
+        
+        # Log scraping statistics for observability
+        logger.info(
+            f"Raw content scraping: {scraping_stats['success']}/{scraping_stats['total']} successful, "
+            f"{scraping_stats['failed']} failed. Errors: {dict(scraping_stats['errors'])}"
+        )
     
     for i, result in enumerate(searxng_results[:request.max_results]):
         if not result.get("url"):
