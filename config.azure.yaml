@@ -7,11 +7,17 @@
 # - adapter.searxng_url uses localhost:8080 (sidecar, not docker service name)
 # - valkey.url uses localhost:6379 (sidecar, not docker service name)
 #
+# DEPLOYMENT:
+# This file is automatically read and deployed as a secret volume mount during
+# the GitHub Actions workflow. The same config content is mounted at:
+# - /srv/searxng-docker/config.yaml for the Tavily adapter
+# - /etc/searxng/settings.yml for SearXNG
+# Both containers share the same configuration, just at different paths.
+#
 # SETUP:
-# 1. Copy this file content to GitHub Secret CONFIG_YAML
-# 2. Update the secret_key below to a random 32+ character string
-# 3. Adjust search engines and other settings as needed
-# 4. Deploy via GitHub Actions workflow: azure-deploy.yml
+# 1. Update the secret_key below to a random 32+ character string
+# 2. Adjust search engines and other settings as needed
+# 3. Commit changes and deploy via GitHub Actions workflow: azure-deploy.yml
 
 # =================================
 # SearXNG Configuration (root level for SearXNG sidecar)

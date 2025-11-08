@@ -50,9 +50,6 @@ jobs:
       
       # Deploy or update the container app with sidecars using CLI commands
       - name: Deploy Container App with Sidecars
-        env:
-          CONFIG_YAML_CONTENT: ${{ secrets.CONFIG_YAML }}
-          SEARXNG_SECRET_KEY: ${{ secrets.SEARXNG_SECRET_KEY }}
         run: |
           # Check if container app exists
           if az containerapp show \
@@ -70,11 +67,15 @@ jobs:
             sleep 10
           fi
           
+          # Read config.azure.yaml from repository and prepare for secret injection
+          echo "Reading config.azure.yaml from repository..."
+          CONFIG_YAML_CONTENT=$(cat config.azure.yaml)
+          
           echo "Creating container app with main container..."
           echo "Using image: ${{ env.MAIN_IMAGE }}"
           
           # Create the container app with main container
-          # Pass config via environment variable (stored securely in Azure)
+          # Config will be mounted as a secret volume in the update step
           # Using Azure Container Apps valid combination: 0.75 CPU, 1.5GB total
           az containerapp create \
             --name ${{ env.CONTAINER_APP_NAME }} \
@@ -89,12 +90,12 @@ jobs:
             --max-replicas 1 \
             --registry-server docker.io \
             --registry-username ${{ secrets.DOCKER_USER }} \
-            --registry-password ${{ secrets.DOCKER_PASSWORD }} \
-            --env-vars CONFIG_YAML="$CONFIG_YAML_CONTENT"
+            --registry-password ${{ secrets.DOCKER_PASSWORD }}
           
           echo "Main container created. Now adding sidecars via YAML update..."
           
-          # Create YAML with all three containers AND registry config
+          # Create YAML with all three containers, secret volume for config, and registry config
+          # Config is mounted as a secret volume at the expected paths for both adapter and SearXNG
           # Total: 0.75 CPU, 1.5GB (valid Azure combination)
           cat > /tmp/sidecars.yaml <<EOF
           properties:
@@ -106,16 +107,30 @@ jobs:
               secrets:
               - name: dockerio-password
                 value: "${{ secrets.DOCKER_PASSWORD }}"
+              - name: config-yaml
+                value: |
+          $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/        /')
             template:
+              volumes:
+              - name: adapter-config-volume
+                storageType: Secret
+                secrets:
+                - secretRef: config-yaml
+                  path: config.yaml
+              - name: searxng-config-volume
+                storageType: Secret
+                secrets:
+                - secretRef: config-yaml
+                  path: settings.yml
               containers:
               - name: je-tavily-adapter
                 image: jeconsulting/searxng-docker-tavily-adapter:latest
                 env:
-                - name: CONFIG_YAML
-                  value: |
-          $(echo "$CONFIG_YAML_CONTENT" | sed 's/^/          /')
                 - name: SEARXNG_URL
                   value: "http://localhost:8080"
+                volumeMounts:
+                - volumeName: adapter-config-volume
+                  mountPath: /srv/searxng-docker
                 resources:
                   cpu: 0.50
                   memory: 1.0Gi
@@ -129,44 +144,11 @@ jobs:
                 env:
                 - name: SEARXNG_BASE_URL
                   value: "http://localhost:8080/"
-                - name: SEARXNG_SECRET
-                  value: "TAVILY_API_KEY"
-                - name: SEARXNG_REDIS_URL
-                  value: "redis://localhost:6379/0"
                 - name: BIND_ADDRESS
                   value: "[::]:8080"
-                - name: SEARXNG_SERVER__SECRET_KEY
-                  value: "TAVILY_API_KEY"
-                - name: SEARXNG_SERVER__BASE_URL
-                  value: "http://localhost:8080/"
-                - name: SEARXNG_VALKEY__URL
-                  value: "redis://localhost:6379/0"
-                - name: SEARXNG_OUTGOING__REQUEST_TIMEOUT
-                  value: "10.0"
-                - name: SEARXNG_OUTGOING__MAX_REQUEST_TIMEOUT
-                  value: "15.0"
-                - name: SEARXNG_ENGINES__GOOGLE__DISABLED
-                  value: "false"
-                - name: SEARXNG_ENGINES__DUCKDUCKGO__DISABLED
-                  value: "false"
-                - name: SEARXNG_ENGINES__BRAVE__DISABLED
-                  value: "false"
-                - name: SEARXNG_ENGINES__STARTPAGE__DISABLED
-                  value: "true"
-                - name: SEARXNG_ENGINES__YACY_IMAGES__DISABLED
-                  value: "true"
-                - name: SEARXNG_ENGINES__BING__DISABLED
-                  value: "true"
-                - name: SEARXNG_SERVER__LIMITER
-                  value: "false"
-                - name: SEARXNG_SEARCH__FORMATS
-                  value: "html,json,csv,rss"
-                - name: SEARXNG_SERVER__IMAGE_PROXY
-                  value: "true"
-                - name: SEARXNG_SERVER__ALLOWED_HOSTS
-                  value: "*"
-                - name: SEARXNG_SERVER__API_KEY
-                  value: ""
+                volumeMounts:
+                - volumeName: searxng-config-volume
+                  mountPath: /etc/searxng
                 resources:
                   cpu: 0.10
                   memory: 0.25Gi
