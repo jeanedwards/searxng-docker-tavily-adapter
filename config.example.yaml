@@ -7,6 +7,15 @@
 # - server.secret_key (for SearXNG)
 # - adapter.searxng_url (if you need a custom endpoint)
 # - adapter.scraper.user_agent (optional)
+#
+# CACHING ARCHITECTURE:
+# This setup uses TWO separate caching layers:
+# 1. SearXNG's Redis/Valkey cache (configured in 'valkey' section below)
+#    - Caches search results, rate limiting, sessions
+#    - Shared across all SearXNG requests
+# 2. Adapter's in-memory cache (configured in 'adapter.search' section)
+#    - Python-level caching for adapter API responses
+#    - Independent of SearXNG's cache
 
 # =================================
 # SearXNG configuration (root-level options for SearXNG)
@@ -27,7 +36,17 @@ search:
     - csv
     - rss
 
-# Redis/Valkey settings
+# =========================================================================
+# Redis/Valkey settings (SearXNG built-in caching)
+# =========================================================================
+# SearXNG uses Redis/Valkey for:
+# - Search results caching (automatic, no TTL configuration)
+# - Rate limiting (when server.limiter is enabled)
+# - Session management
+# - Autocomplete caching
+# 
+# Docker network: redis://redis:6379/0
+# Azure/localhost: redis://localhost:6379/0
 valkey:
   url: redis://redis:6379/0
 
@@ -78,6 +97,21 @@ adapter:
     default_categories: "general"
     default_language: "auto"
     safesearch: 1
+    
+    # =====================================================================
+    # Adapter's own in-memory cache (separate from SearXNG's Redis cache)
+    # =====================================================================
+    # These settings control the adapter's Python-level caching layer:
+    # - cache_ttl_seconds: How long adapter keeps cached search responses
+    # - cache_max_entries: Maximum cached queries in adapter's memory
+    # - response_cache_ttl_seconds: TTL for HTTP response cache
+    # - response_cache_max_entries: Max response entries in adapter's memory
+    # 
+    # Note: This is independent of SearXNG's Redis/Valkey cache configured above
+    cache_ttl_seconds: 120         # Adapter cache TTL (seconds)
+    cache_max_entries: 256         # Max cached queries in adapter memory
+    response_cache_ttl_seconds: 60  # HTTP response cache TTL (seconds)
+    response_cache_max_entries: 128 # Max response cache entries in adapter memory
 
   # Tavily Extract API limits
   extract:

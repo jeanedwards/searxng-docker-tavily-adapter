@@ -11,6 +11,8 @@ from typing import Any
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
+from .cache import ResponseCache
+from .config_loader import config
 from .models import SearchRequest, ExtractRequest
 from .services import SearchService, ExtractService
 
@@ -23,6 +25,11 @@ router = APIRouter()
 # Initialize services
 search_service = SearchService(logger=logger)
 extract_service = ExtractService(logger=logger)
+# Response cache stores serialized bodies keyed by request payload.
+search_response_cache = ResponseCache(
+    max_entries=config.search_response_cache_max_entries,
+    ttl_seconds=config.search_response_cache_ttl,
+)
 
 
 @router.post("/search")
@@ -42,7 +49,18 @@ async def search(request: SearchRequest) -> dict[str, Any]:
     Raises:
         HTTPException: On SearXNG errors or timeouts
     """
-    return await search_service.search(request)
+    cache_key = (request.query, request.max_results, request.include_raw_content)
+
+    # Serve cached response when available to bypass downstream service work.
+    cached_response = await search_response_cache.get(cache_key)
+    if cached_response is not None:
+        logger.debug("Serving cached /search response for query=%s", request.query)
+        return cached_response
+
+    response_payload = await search_service.search(request)
+    # Store response so consecutive identical requests reuse it.
+    await search_response_cache.set(cache_key, response_payload)
+    return response_payload
 
 
 @router.post("/extract")

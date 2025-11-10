@@ -65,7 +65,11 @@ class Config:
                 },
                 "search": {
                     "default_max_results": 10,
-                    "default_engines": "google,duckduckgo,brave"
+                    "default_engines": "google,duckduckgo,brave",
+                    "cache_ttl_seconds": 120,
+                    "cache_max_entries": 256,
+                    "response_cache_ttl_seconds": 60,
+                    "response_cache_max_entries": 128,
                 },
                 "extract": {
                     "max_urls": 20,
@@ -111,6 +115,22 @@ class Config:
     @property
     def default_engines(self) -> str:
         return self._config.get("adapter", {}).get("search", {}).get("default_engines", "google,duckduckgo,brave")
+
+    @property
+    def search_cache_ttl(self) -> int:
+        return self._config.get("adapter", {}).get("search", {}).get("cache_ttl_seconds", 120)
+
+    @property
+    def search_cache_max_entries(self) -> int:
+        return self._config.get("adapter", {}).get("search", {}).get("cache_max_entries", 256)
+
+    @property
+    def search_response_cache_ttl(self) -> int:
+        return self._config.get("adapter", {}).get("search", {}).get("response_cache_ttl_seconds", 60)
+
+    @property
+    def search_response_cache_max_entries(self) -> int:
+        return self._config.get("adapter", {}).get("search", {}).get("response_cache_max_entries", 128)
 
     @property
     def extract_max_urls(self) -> int:

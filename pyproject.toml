@@ -16,6 +16,7 @@ dependencies = [
     "beautifulsoup4>=4.12.2",    # HTML parsing for web scraping
     "pyyaml>=6.0.1",             # YAML config file parsing
     "crawl4ai>=0.7.6",           # Advanced web crawling and extraction
+    "cachetools>=5.3.3",         # In-memory caching with TTL support
 ]
 
 # Development dependencies

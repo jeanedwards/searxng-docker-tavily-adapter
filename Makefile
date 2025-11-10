@@ -150,12 +150,12 @@ test-api:
 	@curl -X POST "http://localhost:8000/search" \
 	     -H "Content-Type: application/json" \
 	     -d '{"query": "test search", "max_results": 3}' \
-	     | python -m json.tool
+	     | uv run python -m json.tool
 
 # Check health endpoint
 health:
 	@echo "🏥 Checking health..."
-	@curl -s http://localhost:8000/health | python -m json.tool
+	@curl -s http://localhost:8000/health | uv run python -m json.tool
 
 # Install Playwright browsers (if needed separately)
 install-playwright:

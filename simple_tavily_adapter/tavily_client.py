@@ -3,12 +3,15 @@ Tavily-compatible client for SearXNG
 Provides same interface as tavily-python package but uses SearXNG backend
 """
 import asyncio
+import logging
 import time
 import uuid
+from copy import deepcopy
 from typing import Any
 
 import aiohttp
 from bs4 import BeautifulSoup
+from cachetools import TTLCache
 from pydantic import BaseModel
 
 from .config_loader import config
@@ -32,10 +35,23 @@ class TavilyResponse(BaseModel):
     request_id: str
 
 
+logger = logging.getLogger(__name__)
+
+
 class TavilyClient:
     def __init__(self, api_key: str = "", searxng_url: str | None = None):
         self.api_key = api_key  # Stored for API compatibility but never used
         self.searxng_url = (searxng_url or config.searxng_url).rstrip('/')
+        # In-memory cache keeps hot search responses for a short time window.
+        # TTLCache is used because it is a lightweight and popular Python solution.
+        # The cache reduces duplicate calls to SearXNG while keeping memory bounded.
+        self._search_cache: TTLCache = TTLCache(
+            maxsize=config.search_cache_max_entries,
+            ttl=config.search_cache_ttl,
+        )
+        # Lazy-initialized asyncio lock protects the cache in concurrent scenarios.
+        # We create it lazily to avoid touching the event loop during __init__.
+        self._cache_lock: asyncio.Lock | None = None
     
     async def _fetch_raw_content(self, session: aiohttp.ClientSession, url: str) -> str | None:
         """Scrape the page and return the first 2500 characters of text."""
@@ -87,6 +103,17 @@ class TavilyClient:
         max_results: int = 10,
         include_raw_content: bool = False,
     ) -> dict[str, Any]:
+        # Cache key keeps query parameters compact and hashable.
+        cache_key = (query, max_results, include_raw_content)
+        cache_lock = self._ensure_cache_lock()
+        # We copy cached payloads before returning them so callers cannot modify
+        # the shared cached value by mistake.
+        async with cache_lock:
+            cached_payload = self._search_cache.get(cache_key)
+        if cached_payload is not None:
+            logger.debug("Serving search response from cache for query=%s", query)
+            return deepcopy(cached_payload)
+
         start_time = time.time()
         request_id = str(uuid.uuid4())
         
@@ -165,7 +192,7 @@ class TavilyClient:
         
         response_time = time.time() - start_time
         
-        return TavilyResponse(
+        fresh_payload = TavilyResponse(
             query=query,
             follow_up_questions=None,
             answer=None,
@@ -174,3 +201,22 @@ class TavilyClient:
             response_time=response_time,
             request_id=request_id,
         ).model_dump()
+
+        # Cache the freshly computed payload. We store a deep copy
+        # so future reads return independent dictionaries.
+        async with cache_lock:
+            self._search_cache[cache_key] = deepcopy(fresh_payload)
+
+        return fresh_payload
+
+    def _ensure_cache_lock(self) -> asyncio.Lock:
+        """
+        Provide an asyncio.Lock bound to the current loop.
+
+        The lock is created lazily the first time we need it, ensuring
+        we only touch asyncio primitives when a loop is already running.
+        """
+        if self._cache_lock is None:
+            # Lock is attached to the running loop during creation.
+            self._cache_lock = asyncio.Lock()
+        return self._cache_lock
