@@ -117,7 +117,12 @@ class ExtractService(BaseService):
                         )
                         continue
 
-                    body = render_crawl_body(crawl_result, preferred_format)
+                    body = render_crawl_body(
+                        crawl_result,
+                        preferred_format,
+                        include_images=request.include_images,
+                        include_links=request.include_links,
+                    )
                     images = (
                         extract_images(getattr(crawl_result, "media", {}))
                         if request.include_images

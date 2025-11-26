@@ -30,6 +30,47 @@ EXCLUDED_TAGS = [
     "sidebar",
     "advertisement",
     "noscript",
+    "script",
+    "style",
+    "form",
+    "button",
+    "iframe",
+    "svg",
+    "canvas",
+    "video",
+    "audio",
+    "figure",  # Often contains decorative images
+    "figcaption",
+]
+
+# Common image file extensions (including exotic formats)
+IMAGE_EXTENSIONS = (
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".bmp",
+    ".tiff", ".tif", ".avif", ".heic", ".heif", ".jfif", ".pjpeg", ".pjp",
+)
+
+# Regex patterns to remove common noise from markdown output
+# These patterns match common UI elements, social links, cookie notices, etc.
+NOISE_PATTERNS = [
+    # Social media sharing buttons and links
+    r"(?m)^\s*\[?(Share|Tweet|Pin|Email|Print|Copy|Like|Follow|Subscribe)\]?\s*$",
+    r"(?m)^\s*\[?(Facebook|Twitter|LinkedIn|Instagram|YouTube|TikTok|Pinterest)\]?\s*$",
+    # Cookie and privacy notices
+    r"(?m)^\s*\[?(Accept|Reject|Cookie|Privacy|GDPR|Consent)\s*(All|Cookies|Settings|Policy)?\]?\s*$",
+    # Navigation breadcrumbs and pagination
+    r"(?m)^\s*\[?(Home|Back|Next|Previous|Page|›|»|«|‹)\]?\s*$",
+    r"(?m)^\s*\d+\s*$",  # Standalone page numbers
+    # Login/signup prompts
+    r"(?m)^\s*\[?(Sign\s*(In|Up|Out)|Log\s*(In|Out)|Register|Login|Logout)\]?\s*$",
+    # Empty or near-empty lines with just symbols
+    r"(?m)^\s*[\|\-\*\_\#\>\•\·\–\—]+\s*$",
+    # Read more / continue reading links
+    r"(?m)^\s*\[?(Read\s*More|Continue\s*Reading|See\s*More|View\s*More|Load\s*More)\]?\s*$",
+    # Copyright and legal text (usually at bottom)
+    r"(?m)^\s*©.*\d{4}.*$",
+    r"(?m)^\s*All\s*Rights\s*Reserved.*$",
+    # Skip to content links
+    r"(?m)^\s*\[?Skip\s*(to)?\s*(Main)?\s*Content\]?\s*$",
 ]
 
 
@@ -72,7 +113,7 @@ def build_search_crawl_config() -> CrawlerRunConfig:
     Creates a lightweight CrawlerRunConfig optimized for search result scraping.
 
     Uses balanced settings for speed and content quality. Excludes navigation
-    elements and applies pruning filter to focus on main content.
+    elements and applies aggressive pruning filter to focus on main content.
 
     Returns:
         CrawlerRunConfig: Configuration for quality search scraping
@@ -80,10 +121,11 @@ def build_search_crawl_config() -> CrawlerRunConfig:
     timeout_ms = int(config.scraper_timeout * 1000)
 
     # Content filter to remove low-relevance sections (sidebars, menus, etc.)
+    # Higher threshold = more aggressive filtering (0.0-1.0 scale)
     prune_filter = PruningContentFilter(
-        threshold=0.4,  # Moderate threshold for search results
+        threshold=0.55,  # Aggressive threshold to reduce noise
         threshold_type="fixed",
-        min_word_threshold=10,  # Minimum words per block to retain
+        min_word_threshold=15,  # Require more words per block to retain
     )
 
     # Markdown generator with content filtering
@@ -95,11 +137,145 @@ def build_search_crawl_config() -> CrawlerRunConfig:
         remove_overlay_elements=True,
         process_iframes=False,  # Fast mode: skip iframes
         excluded_tags=EXCLUDED_TAGS,  # Remove nav, header, footer, aside, etc.
-        word_count_threshold=8,  # Lower threshold captures more content blocks
+        word_count_threshold=12,  # Higher threshold filters out short noise blocks
         page_timeout=timeout_ms,
         delay_before_return_html=0.3,  # Small delay for dynamic content to load
         markdown_generator=md_generator,
     )
+
+
+def strip_image_links(markdown: str) -> str:
+    """
+    Remove all image references from markdown content.
+
+    Strips markdown image syntax ![alt](url), standalone image URLs,
+    and HTML img tags. Supports all common image formats including
+    exotic ones like webp, avif, heic.
+
+    Args:
+        markdown: Markdown string with potential image links
+
+    Returns:
+        Markdown with all image references removed
+    """
+    if not markdown:
+        return ""
+
+    result = markdown
+
+    # Remove markdown image syntax: ![alt text](url)
+    result = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", result)
+
+    # Remove HTML img tags: <img ... />
+    result = re.sub(r"<img[^>]*>", "", result, flags=re.IGNORECASE)
+
+    # Build regex pattern for image extensions (case insensitive)
+    # Matches URLs ending with image extensions
+    ext_pattern = "|".join(re.escape(ext) for ext in IMAGE_EXTENSIONS)
+
+    # Remove standalone image URLs (lines that are just image URLs)
+    # Matches http(s) URLs ending with image extensions
+    result = re.sub(
+        rf"(?m)^\s*https?://[^\s]+({ext_pattern})(\?[^\s]*)?\s*$",
+        "",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # Remove image URLs in markdown links: [text](image_url)
+    # Only removes links where the URL points to an image file
+    result = re.sub(
+        rf"\[[^\]]*\]\(([^)]+({ext_pattern})(\?[^)]*)?)\)",
+        "",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # Remove inline image URLs within text
+    # Be careful not to break valid text - only remove URLs that look like images
+    result = re.sub(
+        rf"https?://[^\s<>\"]+({ext_pattern})(\?[^\s<>\"]*)?",
+        "",
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    return result
+
+
+def strip_links(markdown: str) -> str:
+    """
+    Remove all links from markdown content, preserving link text.
+
+    Converts markdown links to plain text, removes standalone URLs,
+    and strips HTML anchor tags while keeping their text content.
+
+    Args:
+        markdown: Markdown string with potential links
+
+    Returns:
+        Markdown with all links removed but text preserved
+    """
+    if not markdown:
+        return ""
+
+    result = markdown
+
+    # Convert markdown links to just their text: [text](url) → text
+    result = re.sub(r"\[([^\]]*)\]\([^)]+\)", r"\1", result)
+
+    # Remove HTML anchor tags but keep text: <a href="...">text</a> → text
+    result = re.sub(r"<a\s+[^>]*>([^<]*)</a>", r"\1", result, flags=re.IGNORECASE)
+
+    # Remove standalone URLs (lines that are just URLs)
+    result = re.sub(r"(?m)^\s*https?://[^\s]+\s*$", "", result)
+
+    # Remove inline URLs (bare URLs in text)
+    # This pattern matches URLs that aren't part of markdown syntax
+    result = re.sub(r"https?://[^\s<>\")\]]+", "", result)
+
+    # Clean up any leftover empty parentheses or brackets
+    result = re.sub(r"\(\s*\)", "", result)
+    result = re.sub(r"\[\s*\]", "", result)
+
+    return result
+
+
+def clean_markdown_noise(markdown: str) -> str:
+    """
+    Remove common noise patterns from markdown content.
+
+    Applies regex patterns to strip social buttons, cookie notices,
+    navigation elements, and other UI noise that often survives
+    HTML-to-markdown conversion.
+
+    Args:
+        markdown: Raw markdown string
+
+    Returns:
+        Cleaned markdown with noise removed
+    """
+    if not markdown:
+        return ""
+
+    result = markdown
+
+    # Apply all noise removal patterns
+    for pattern in NOISE_PATTERNS:
+        result = re.sub(pattern, "", result, flags=re.IGNORECASE)
+
+    # Remove excessive blank lines (more than 2 consecutive)
+    result = re.sub(r"\n{4,}", "\n\n\n", result)
+
+    # Remove lines that are just markdown formatting with no content
+    # e.g., "###" or "**" or "---" alone
+    result = re.sub(r"(?m)^\s*[#*_\-]{1,6}\s*$", "", result)
+
+    # Clean up leading/trailing whitespace per line and overall
+    lines = [line.rstrip() for line in result.split("\n")]
+    result = "\n".join(lines).strip()
+
+    return result
 
 
 def markdown_to_text(markdown: str) -> str:
@@ -208,16 +384,24 @@ def safe_markdown(markdown_obj: Any) -> str | None:
     return None
 
 
-def render_crawl_body(result: Any, preferred_format: str) -> str | None:
+def render_crawl_body(
+    result: Any,
+    preferred_format: str,
+    include_images: bool = True,
+    include_links: bool = True,
+) -> str | None:
     """
     Render crawl result body in the requested format.
 
     Extracts content from Crawl4AI result, preferring markdown but
-    falling back to cleaned HTML. Converts to text if requested.
+    falling back to cleaned HTML. Applies noise reduction and
+    converts to text if requested. Optionally strips image and other links.
 
     Args:
         result: Crawl4AI result object
         preferred_format: "markdown" or "text"
+        include_images: If False, strips all image links from output
+        include_links: If False, strips all links (preserves text)
 
     Returns:
         Rendered content string or None if no content available
@@ -232,6 +416,20 @@ def render_crawl_body(result: Any, preferred_format: str) -> str | None:
             soup = BeautifulSoup(cleaned_html, "html.parser")
             text = soup.get_text(separator=" ", strip=True)
             markdown_body = text or None
+
+    if not markdown_body:
+        return None
+
+    # Apply noise reduction to remove social buttons, cookie notices, etc.
+    markdown_body = clean_markdown_noise(markdown_body)
+
+    # Strip image links if not requested (do this before general link stripping)
+    if not include_images:
+        markdown_body = strip_image_links(markdown_body)
+
+    # Strip all links if not requested (preserves link text)
+    if not include_links:
+        markdown_body = strip_links(markdown_body)
 
     if not markdown_body:
         return None
@@ -405,7 +603,7 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
 
     Creates optimized configuration for either "basic" (fast) or
     "advanced" (thorough) extraction modes. Excludes navigation elements
-    and applies pruning filter to focus on main content.
+    and applies aggressive pruning filter to focus on main content.
 
     Args:
         depth: "basic" or "advanced"
@@ -418,11 +616,12 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
     is_advanced = depth == "advanced"
 
     # Content filter to remove low-relevance sections
-    # Lower threshold = more aggressive filtering
+    # Higher threshold = more aggressive filtering (0.0-1.0 scale)
+    # Advanced mode uses slightly lower threshold to capture more detail
     prune_filter = PruningContentFilter(
-        threshold=0.3 if is_advanced else 0.4,  # Advanced mode filters more aggressively
+        threshold=0.5 if is_advanced else 0.6,  # Aggressive filtering to reduce noise
         threshold_type="fixed",
-        min_word_threshold=8 if is_advanced else 10,
+        min_word_threshold=12 if is_advanced else 15,  # Require substantial blocks
     )
 
     # Markdown generator with content filtering
@@ -434,7 +633,7 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
         remove_overlay_elements=True,
         process_iframes=is_advanced,  # Only process iframes in advanced mode
         excluded_tags=EXCLUDED_TAGS,  # Remove nav, header, footer, aside, etc.
-        word_count_threshold=5 if is_advanced else 8,  # Lower thresholds capture more content
+        word_count_threshold=10 if is_advanced else 12,  # Filter out short noise blocks
         page_timeout=timeout_ms,
         delay_before_return_html=1.5 if is_advanced else 0.3,  # Wait for dynamic content to load
         markdown_generator=md_generator,
