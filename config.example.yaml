@@ -79,7 +79,20 @@ adapter:
     host: "0.0.0.0"
     port: 8000
 
-  # URL used to reach SearXNG
+  # =========================================================================
+  # Search Backend Selection (Environment Variable Driven)
+  # =========================================================================
+  # By default, the adapter uses SearXNG as the search backend.
+  # You can switch to Google Custom Search API by setting these env variables:
+  #
+  #   SEARCH_BACKEND=google       # Switch to Google API (default: "searxng")
+  #   GOOGLE_API_KEY=your_key     # Google Cloud API key
+  #   GOOGLE_CSE_ID=your_cse_id   # Google Custom Search Engine ID
+  #
+  # When SEARCH_BACKEND=google, you don't need a running SearXNG instance.
+  # Google API has a free tier (100 queries/day) and paid plans for more.
+
+  # URL used to reach SearXNG (only used when SEARCH_BACKEND != "google")
   # Internal Docker URL (same network): "http://searxng:8080"
   # External URL (standalone SearXNG): "http://localhost:8999"
   searxng_url: "http://searxng:8080"
@@ -119,3 +132,31 @@ adapter:
     timeout_basic: 30       # Timeout (seconds) for basic mode - increased from 12
     timeout_advanced: 45    # Timeout (seconds) for advanced mode - increased from 25
     default_format: "markdown"
+
+  # Browser/Crawler settings (for Crawl4AI)
+  browser:
+    # Headless mode (true = no visible browser window)
+    headless: true
+    
+    # Use persistent browser context to maintain cookies across requests
+    use_persistent_context: false
+    
+    # Cookies to send with requests (useful for authenticated access)
+    # Each cookie needs: name, value, domain. Optional: path, secure, httpOnly
+    # Example:
+    # cookies:
+    #   - name: "session_id"
+    #     value: "abc123"
+    #     domain: ".example.com"
+    #     path: "/"
+    #   - name: "auth_token"
+    #     value: "xyz789"
+    #     domain: ".example.com"
+    cookies: []
+    
+    # Extra HTTP headers to send with requests
+    # Example:
+    # extra_headers:
+    #   Accept-Language: "en-US,en;q=0.9"
+    #   DNT: "1"
+    extra_headers: {}

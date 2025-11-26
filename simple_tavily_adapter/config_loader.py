@@ -7,10 +7,13 @@ Looks for config.yaml in this order:
 3. /srv/searxng-docker/config.yaml (Docker)
 4. Falls back to default config
 """
+
 import os
-import yaml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
+import yaml
+
 
 class Config:
     def __init__(self, config_path: str = None):
@@ -30,28 +33,28 @@ class Config:
         else:
             # No config found, will use defaults
             self.config_path = None
-        
+
         self._config = self._load_config()
-    
-    def _load_config(self) -> Dict[str, Any]:
+
+    def _load_config(self) -> dict[str, Any]:
         """
         Load configuration from unified YAML file.
-        
+
         Returns default config if file not found.
         """
         if self.config_path and self.config_path.exists():
             try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     config_data = yaml.safe_load(f)
                     print(f"✓ Loaded config from: {self.config_path}")
                     return config_data
             except Exception as e:
                 print(f"✗ Error loading config from {self.config_path}: {e}")
         else:
-            print(f"⚠ Config file not found, using defaults (searxng:8080)")
+            print("⚠ Config file not found, using defaults (searxng:8080)")
             if self.config_path:
                 print(f"  Tried: {self.config_path}")
-        
+
         # Return default config if file not found or error occurred
         # Fallback to default config (Docker-oriented)
         return {
@@ -61,7 +64,7 @@ class Config:
                 "scraper": {
                     "timeout": 10,
                     "max_content_length": 2500,
-                    "user_agent": "Mozilla/5.0 (compatible; TavilyBot/1.0)"
+                    "user_agent": "Mozilla/5.0 (compatible; TavilyBot/1.0)",
                 },
                 "search": {
                     "default_max_results": 10,
@@ -75,11 +78,11 @@ class Config:
                     "max_urls": 20,
                     "timeout_basic": 12,
                     "timeout_advanced": 25,
-                    "default_format": "markdown"
-                }
+                    "default_format": "markdown",
+                },
             }
         }
-    
+
     @property
     def searxng_url(self) -> str:
         # Environment variable override for Azure Container Apps sidecar deployment
@@ -87,34 +90,42 @@ class Config:
         if env_url:
             return env_url
         return self._config.get("adapter", {}).get("searxng_url", "http://searxng:8080")
-    
+
     @property
     def server_host(self) -> str:
         return self._config.get("adapter", {}).get("server", {}).get("host", "0.0.0.0")
-    
+
     @property
     def server_port(self) -> int:
         return self._config.get("adapter", {}).get("server", {}).get("port", 8000)
-    
+
     @property
     def scraper_timeout(self) -> int:
         return self._config.get("adapter", {}).get("scraper", {}).get("timeout", 10)
-    
+
     @property
     def scraper_max_length(self) -> int:
         return self._config.get("adapter", {}).get("scraper", {}).get("max_content_length", 2500)
-    
+
     @property
     def scraper_user_agent(self) -> str:
-        return self._config.get("adapter", {}).get("scraper", {}).get("user_agent", "Mozilla/5.0 (compatible; TavilyBot/1.0)")
-    
+        return (
+            self._config.get("adapter", {})
+            .get("scraper", {})
+            .get("user_agent", "Mozilla/5.0 (compatible; TavilyBot/1.0)")
+        )
+
     @property
     def default_max_results(self) -> int:
         return self._config.get("adapter", {}).get("search", {}).get("default_max_results", 10)
-    
+
     @property
     def default_engines(self) -> str:
-        return self._config.get("adapter", {}).get("search", {}).get("default_engines", "google,duckduckgo,brave")
+        return (
+            self._config.get("adapter", {})
+            .get("search", {})
+            .get("default_engines", "google,duckduckgo,brave")
+        )
 
     @property
     def search_cache_ttl(self) -> int:
@@ -126,11 +137,15 @@ class Config:
 
     @property
     def search_response_cache_ttl(self) -> int:
-        return self._config.get("adapter", {}).get("search", {}).get("response_cache_ttl_seconds", 60)
+        return (
+            self._config.get("adapter", {}).get("search", {}).get("response_cache_ttl_seconds", 60)
+        )
 
     @property
     def search_response_cache_max_entries(self) -> int:
-        return self._config.get("adapter", {}).get("search", {}).get("response_cache_max_entries", 128)
+        return (
+            self._config.get("adapter", {}).get("search", {}).get("response_cache_max_entries", 128)
+        )
 
     @property
     def extract_max_urls(self) -> int:
@@ -147,6 +162,82 @@ class Config:
     @property
     def extract_default_format(self) -> str:
         return self._config.get("adapter", {}).get("extract", {}).get("default_format", "markdown")
+
+    # =========================================================================
+    # Google Custom Search API configuration (environment variable driven)
+    # =========================================================================
+
+    @property
+    def search_backend(self) -> str:
+        """
+        Search backend to use: 'searxng' (default) or 'google'.
+
+        Set via SEARCH_BACKEND environment variable.
+        When 'google', requires GOOGLE_API_KEY and GOOGLE_CSE_ID to be set.
+        """
+        return os.getenv("SEARCH_BACKEND", "searxng").lower()
+
+    @property
+    def google_api_key(self) -> str | None:
+        """
+        Google Cloud API key for Custom Search API.
+
+        Set via GOOGLE_API_KEY environment variable.
+        Required when search_backend is 'google'.
+        """
+        return os.getenv("GOOGLE_API_KEY")
+
+    @property
+    def google_cse_id(self) -> str | None:
+        """
+        Google Custom Search Engine ID.
+
+        Set via GOOGLE_CSE_ID environment variable.
+        Required when search_backend is 'google'.
+        """
+        return os.getenv("GOOGLE_CSE_ID")
+
+    @property
+    def is_google_backend(self) -> bool:
+        """Check if Google backend is enabled and properly configured."""
+        return (
+            self.search_backend == "google"
+            and self.google_api_key is not None
+            and self.google_cse_id is not None
+        )
+
+    # =========================================================================
+    # Browser/Crawler configuration
+    # =========================================================================
+
+    @property
+    def browser_headless(self) -> bool:
+        """Run browser in headless mode (no visible window)."""
+        return self._config.get("adapter", {}).get("browser", {}).get("headless", True)
+
+    @property
+    def browser_use_persistent_context(self) -> bool:
+        """Use persistent browser context to maintain cookies across requests."""
+        return (
+            self._config.get("adapter", {}).get("browser", {}).get("use_persistent_context", False)
+        )
+
+    @property
+    def browser_cookies(self) -> list[dict]:
+        """
+        Cookies to send with browser requests.
+
+        Returns list of cookie dicts with keys: name, value, domain, path (optional).
+        """
+        cookies = self._config.get("adapter", {}).get("browser", {}).get("cookies", [])
+        return cookies if isinstance(cookies, list) else []
+
+    @property
+    def browser_extra_headers(self) -> dict[str, str]:
+        """Extra HTTP headers to send with browser requests."""
+        headers = self._config.get("adapter", {}).get("browser", {}).get("extra_headers", {})
+        return headers if isinstance(headers, dict) else {}
+
 
 # Global config singleton used across the adapter
 config = Config()

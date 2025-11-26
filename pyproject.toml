@@ -17,6 +17,8 @@ dependencies = [
     "pyyaml>=6.0.1",             # YAML config file parsing
     "crawl4ai>=0.7.6",           # Advanced web crawling and extraction
     "cachetools>=5.3.3",         # In-memory caching with TTL support
+    "google-api-python-client>=2.150.0",  # Google Custom Search API client
+    "pymupdf>=1.24.0",           # PDF text extraction for /extract endpoint
 ]
 
 # Development dependencies
