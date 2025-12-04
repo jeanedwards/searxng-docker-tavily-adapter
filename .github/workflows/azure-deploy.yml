@@ -88,7 +88,7 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --environment ${{ env.CONTAINER_ENV_NAME }} \
             --image "docker.io/${{ env.MAIN_IMAGE }}" \
-            --target-port 8000 \
+            --target-port 8001 \
             --ingress external \
             --cpu 0.5 \
             --memory 1.0Gi \

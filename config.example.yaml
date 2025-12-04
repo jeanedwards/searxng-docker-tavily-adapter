@@ -77,7 +77,7 @@ adapter:
   # Adapter server options
   server:
     host: "0.0.0.0"
-    port: 8000
+    port: 8001
 
   # =========================================================================
   # Search Backend Selection (Environment Variable Driven)
@@ -132,6 +132,10 @@ adapter:
     timeout_basic: 30       # Timeout (seconds) for basic mode - increased from 12
     timeout_advanced: 45    # Timeout (seconds) for advanced mode - increased from 25
     default_format: "markdown"
+    pdf_max_pages: 10       # Maximum pages to extract from PDFs (avoids processing huge docs)
+    # Extract response cache (caches extracted content to avoid re-crawling)
+    response_cache_ttl_seconds: 300  # Cache extracted content for 5 minutes
+    response_cache_max_entries: 64   # Max cached extractions in adapter memory
 
   # Browser/Crawler settings (for Crawl4AI)
   browser:

@@ -93,7 +93,7 @@ Users must configure these secrets in their GitHub repository:
 **Main Container (tavily-adapter)**:
 - Image: `jeconsulting/searxng-docker-tavily-adapter:latest`
 - Resources: 0.5 CPU, 1Gi memory
-- Port: 8000 (external HTTPS ingress)
+- Port: 8001 (external HTTPS ingress)
 - Health check: `/health` endpoint
 - Config: Injected via environment variable
 
@@ -181,7 +181,7 @@ All containers share the same network namespace (localhost):
 2. Test entrypoint script locally:
    ```bash
    export CONFIG_YAML="$(cat ../config.azure.yaml)"
-   docker run -e CONFIG_YAML -p 8000:8000 test-adapter
+   docker run -e CONFIG_YAML -p 8001:8001 test-adapter
    ```
 
 ### After Deployment

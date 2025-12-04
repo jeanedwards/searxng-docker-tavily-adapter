@@ -155,10 +155,10 @@ Write-Host "2. Start SearXNG if not running:" -ForegroundColor White
 Write-Host "   " -NoNewline; Write-Host "docker compose up -d searxng redis" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "3. Run the adapter locally:" -ForegroundColor White
-Write-Host "   " -NoNewline; Write-Host "uv run uvicorn simple_tavily_adapter.main:app --reload --port 8000" -ForegroundColor Yellow
+Write-Host "   " -NoNewline; Write-Host "uv run uvicorn simple_tavily_adapter.main:app --reload --port 8001" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "4. Test the API:" -ForegroundColor White
-Write-Host "   " -NoNewline; Write-Host "curl -X POST http://localhost:8000/search -H 'Content-Type: application/json' -d '{`"query`":`"test`",`"max_results`":3}'" -ForegroundColor Yellow
+Write-Host "   " -NoNewline; Write-Host "curl -X POST http://localhost:8001/search -H 'Content-Type: application/json' -d '{`"query`":`"test`",`"max_results`":3}'" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "📖 For more details, see: LOCAL_DEVELOPMENT.md" -ForegroundColor Cyan
 Write-Host ""

@@ -79,7 +79,7 @@ engines:
 adapter:
   server:
     host: "0.0.0.0"
-    port: 8000
+    port: 8001
 
   # IMPORTANT: Use localhost URL when running adapter locally
   # Docker containers expose SearXNG on port 8999

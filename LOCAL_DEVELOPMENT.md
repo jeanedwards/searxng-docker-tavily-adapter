@@ -88,13 +88,13 @@ make docker-up
 python -m simple_tavily_adapter.main
 
 # Or using uvicorn directly for auto-reload
-uvicorn simple_tavily_adapter.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn simple_tavily_adapter.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### 7. Test the API
 ```bash
 # In another terminal
-curl -X POST "http://localhost:8000/search" \
+curl -X POST "http://localhost:8001/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test search", "max_results": 3}'
 ```
@@ -186,7 +186,7 @@ searxng-docker-tavily-adapter/
 ### Run Adapter with Auto-Reload
 ```bash
 # Automatically reloads when code changes
-uv run uvicorn simple_tavily_adapter.main:app --reload --port 8000
+uv run uvicorn simple_tavily_adapter.main:app --reload --port 8001
 ```
 
 ### Check Configuration

@@ -10,6 +10,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from .cache import ResponseCache
 from .config_loader import config
 from .models import SearchRequest, TavilyResponse, TavilyResult
 from .search_base import BaseSearchService
@@ -24,7 +25,30 @@ _MAX_CONCURRENT_REQUESTS = 1
 
 
 class GoogleSearchService(BaseSearchService):
-    """Service for performing searches via Google Custom Search API."""
+    """Service for performing searches via Google Custom Search API.
+
+    Uses in-memory caching for Google API results to reduce API calls
+    and costs. Cache is keyed by (query, max_results) so different
+    include_raw_content settings can share the same cached results.
+    """
+
+    # Class-level cache shared across all instances.
+    # This ensures cache persists even if service is re-instantiated.
+    _google_results_cache: ResponseCache | None = None
+
+    @classmethod
+    def _get_cache(cls) -> ResponseCache:
+        """Get or create the shared results cache.
+
+        Uses config values for TTL and max entries.
+        Lazy initialization to avoid issues with config loading.
+        """
+        if cls._google_results_cache is None:
+            cls._google_results_cache = ResponseCache(
+                max_entries=config.search_cache_max_entries,
+                ttl_seconds=config.search_cache_ttl,
+            )
+        return cls._google_results_cache
 
     def __init__(self, logger: logging.Logger | None = None):
         super().__init__(logger=logger)
@@ -131,41 +155,64 @@ class GoogleSearchService(BaseSearchService):
                 detail="Google API not configured. Set GOOGLE_API_KEY and GOOGLE_CSE_ID.",
             )
 
-        try:
-            # Use semaphore to limit concurrent API calls.
-            # httplib2 isn't thread-safe, causing timeouts/SSL errors under load.
-            async with self._semaphore:
-                google_data = await asyncio.to_thread(
-                    self._execute_google_search,
+        # Cache key based on query and max_results only.
+        # include_raw_content is not part of key since it only affects scraping,
+        # not the Google API results themselves.
+        cache_key = (request.query.lower().strip(), request.max_results)
+        cache = self._get_cache()
+
+        # Try to get cached Google API results.
+        google_data = await cache.get(cache_key)
+        if google_data is not None:
+            self.logger.debug(
+                "Cache hit for Google search: query=%s, max_results=%d",
+                request.query,
+                request.max_results,
+            )
+        else:
+            # Cache miss - call Google API.
+            try:
+                # Use semaphore to limit concurrent API calls.
+                # httplib2 isn't thread-safe, causing timeouts/SSL errors under load.
+                async with self._semaphore:
+                    google_data = await asyncio.to_thread(
+                        self._execute_google_search,
+                        request.query,
+                        request.max_results,
+                    )
+                # Store successful result in cache.
+                await cache.set(cache_key, google_data)
+                self.logger.debug(
+                    "Cached Google search results: query=%s, max_results=%d",
                     request.query,
                     request.max_results,
                 )
-        except HTTPException:
-            raise
-        except Exception as exc:  # noqa: BLE001 - surface SDK errors with context
-            error_msg = str(exc)
-            self.logger.error("Google API error: %s", error_msg)
+            except HTTPException:
+                raise
+            except Exception as exc:  # noqa: BLE001 - surface SDK errors with context
+                error_msg = str(exc)
+                self.logger.error("Google API error: %s", error_msg)
 
-            if "403" in error_msg or "Forbidden" in error_msg:
+                if "403" in error_msg or "Forbidden" in error_msg:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Google API authentication failed. Check your API key.",
+                    ) from exc
+                if "429" in error_msg or "Rate Limit" in error_msg:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Google API rate limit exceeded",
+                    ) from exc
+                if "400" in error_msg or "Invalid" in error_msg:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid Google API request: {error_msg}",
+                    ) from exc
+
                 raise HTTPException(
                     status_code=500,
-                    detail="Google API authentication failed. Check your API key.",
+                    detail="Google search service unavailable",
                 ) from exc
-            if "429" in error_msg or "Rate Limit" in error_msg:
-                raise HTTPException(
-                    status_code=429,
-                    detail="Google API rate limit exceeded",
-                ) from exc
-            if "400" in error_msg or "Invalid" in error_msg:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid Google API request: {error_msg}",
-                ) from exc
-
-            raise HTTPException(
-                status_code=500,
-                detail="Google search service unavailable",
-            ) from exc
 
         google_results = google_data.get("items", [])
 

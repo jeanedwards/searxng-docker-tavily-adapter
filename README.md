@@ -24,7 +24,7 @@ cp config.example.yaml config.yaml
 docker compose up -d
 
 # 4. Smoke test
-curl -X POST "http://localhost:8000/search" \
+curl -X POST "http://localhost:8001/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "bitcoin price", "max_results": 3}'
 ```
@@ -140,7 +140,7 @@ curl -X POST https://<app-url>/search \
 │  ┌──────────────────┐  ┌──────────┐  ┌────────────┐  │
 │  │ Tavily Adapter   │  │  Redis   │  │  SearXNG   │  │
 │  │ (main container) │  │ (sidecar)│  │ (sidecar)  │  │
-│  │ Port: 8000       │  │ :6379    │  │ :8080      │  │
+│  │ Port: 8001       │  │ :6379    │  │ :8080      │  │
 │  └──────────────────┘  └──────────┘  └────────────┘  │
 │           ▲                                           │
 │           │ All containers share localhost            │
@@ -153,7 +153,7 @@ curl -X POST https://<app-url>/search \
 
 **Highlights:**
 - All three containers run in one pod and share localhost networking
-- Only port 8000 (Tavily Adapter) is exposed through HTTPS ingress
+- Only port 8001 (Tavily Adapter) is exposed through HTTPS ingress
 - Redis and SearXNG stay internal and reachable only via localhost
 - Autoscaling keeps 1–3 replicas running
 - Storage is ephemeral (Redis data resets on restart)
@@ -183,7 +183,7 @@ from tavily import TavilyClient
 # Just change the base_url
 client = TavilyClient(
     api_key="ignored",  # The adapter ignores the key
-    base_url="http://localhost:8000"  # Point to your adapter
+    base_url="http://localhost:8001"  # Point to your adapter
 )
 
 # Interact with the API as usual
@@ -199,7 +199,7 @@ response = client.search(
 ```python
 import requests
 
-response = requests.post("http://localhost:8000/search", json={
+response = requests.post("http://localhost:8001/search", json={
     "query": "what is machine learning",
     "max_results": 5,
     "include_raw_content": True
@@ -211,7 +211,7 @@ results = response.json()
 ## 📦 What is inside
 
 - **SearXNG** (port 8999) — powerful meta search engine
-- **Tavily Adapter** (port 8000) — Tavily-compatible HTTP API
+- **Tavily Adapter** (port 8001) — Tavily-compatible HTTP API
 - **Redis** — caching backend for SearXNG
 - **Unified config** — `config.yaml` shared across services
 
@@ -257,7 +257,7 @@ results = response.json()
 ### Extract API (crawl4ai)
 
 ```bash
-curl -X POST "http://localhost:8000/extract" \
+curl -X POST "http://localhost:8001/extract" \
   -H "Content-Type: application/json" \
   -d '{
         "urls": ["https://www.spacex.com/"],
@@ -355,7 +355,7 @@ Full reference: [CONFIG_SETUP.md](CONFIG_SETUP.md)
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Your code     │───▶│  Tavily Adapter  │───▶│     SearXNG     │
-│                 │    │   (port 8000)    │    │   (port 8999)   │
+│                 │    │   (port 8001)    │    │   (port 8999)   │
 │ requests.post() │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
@@ -385,7 +385,7 @@ crawl4ai-setup
 docker compose up -d searxng redis
 
 # Run the adapter locally with hot reload
-uv run uvicorn simple_tavily_adapter.main:app --reload --port 8000
+uv run uvicorn simple_tavily_adapter.main:app --reload --port 8001
 
 # Smoke tests
 uv run python simple_tavily_adapter/test_client.py

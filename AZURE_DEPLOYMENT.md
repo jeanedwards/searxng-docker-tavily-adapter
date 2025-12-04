@@ -7,7 +7,7 @@ This document provides a step-by-step checklist for deploying the Tavily Adapter
 ## Architecture
 
 The deployment uses Azure Container Apps with a sidecar pattern:
-- **Main container**: Tavily Adapter (port 8000, publicly accessible via HTTPS)
+- **Main container**: Tavily Adapter (port 8001, publicly accessible via HTTPS)
 - **Sidecar 1**: Redis/Valkey (port 6379, localhost only)
 - **Sidecar 2**: SearXNG (port 8080, localhost only)
 
@@ -218,7 +218,7 @@ scale:
 ## Security Considerations
 
 1. **Secrets Management**: Never commit `config.yaml` or secrets to the repository
-2. **Network Security**: Only the main container (port 8000) is exposed; sidecars are internal
+2. **Network Security**: Only the main container (port 8001) is exposed; sidecars are internal
 3. **HTTPS**: Azure Container Apps provides automatic HTTPS with managed certificates
 4. **Service Principal**: Limit permissions to the specific resource group only
 5. **Configuration**: Store sensitive data in GitHub Secrets, not in the repository

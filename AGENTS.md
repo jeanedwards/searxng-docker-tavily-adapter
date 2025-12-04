@@ -154,15 +154,15 @@ uv run ruff check --fix .
 
 ```bash
 # Health check
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 
 # Search endpoint
-curl -X POST "http://localhost:8000/search" \
+curl -X POST "http://localhost:8001/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test search", "max_results": 3}'
 
 # Extract endpoint
-curl -X POST "http://localhost:8000/extract" \
+curl -X POST "http://localhost:8001/extract" \
      -H "Content-Type: application/json" \
      -d '{"urls": ["https://example.com"], "format": "markdown"}'
 

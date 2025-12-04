@@ -55,13 +55,13 @@ services:
     networks:
       - searxng
     ports:
-      - "8000:8000"
+      - "8001:8001"
     volumes:
       - ./config.yaml:/srv/searxng-docker/config.yaml:ro  # Shared unified config (copy from config.example.yaml)
     depends_on:
       - searxng
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3

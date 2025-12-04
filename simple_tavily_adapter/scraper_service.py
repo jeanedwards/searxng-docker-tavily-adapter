@@ -68,7 +68,10 @@ class ExtractService(BaseService):
         for url in pdf_urls:
             self.logger.debug("Extracting PDF: %s", url)
             pdf_text, pdf_error = await extract_pdf_text(
-                url, timeout=per_url_timeout, max_size_mb=50.0
+                url,
+                timeout=per_url_timeout,
+                max_size_mb=50.0,
+                max_pages=config.extract_pdf_max_pages,
             )
 
             if pdf_error:

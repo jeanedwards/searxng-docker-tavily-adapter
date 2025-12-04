@@ -13,19 +13,19 @@ This guide explains how networking works when developing the SearXNG Tavily Adap
 │                                         │
 │  ┌──────────┐  ┌──────────┐  ┌───────┐ │
 │  │ Adapter  │→ │ SearXNG  │→ │ Redis │ │
-│  │ :8000    │  │ :8080    │  │ :6379 │ │
+│  │ :8001    │  │ :8080    │  │ :6379 │ │
 │  └──────────┘  └──────────┘  └───────┘ │
 │       │                                 │
 └───────┼─────────────────────────────────┘
         │
         ▼
-   Host :8000
+   Host :8001
 ```
 
 **Connections:**
 - Adapter → SearXNG: `http://searxng:8080` (Docker DNS)
 - SearXNG → Redis: `redis://redis:6379` (Docker DNS)
-- External → Adapter: `http://localhost:8000`
+- External → Adapter: `http://localhost:8001`
 
 **Config:** Use `config.example.yaml` with `searxng_url: "http://searxng:8080"`
 
@@ -39,7 +39,7 @@ This guide explains how networking works when developing the SearXNG Tavily Adap
 │  ┌──────────────┐                        │
 │  │   Adapter    │                        │
 │  │  (Python)    │                        │
-│  │   :8000      │                        │
+│  │   :8001      │                        │
 │  └──────┬───────┘                        │
 │         │                                │
 │         │ http://localhost:8999          │
@@ -66,7 +66,7 @@ This guide explains how networking works when developing the SearXNG Tavily Adap
 - Adapter → SearXNG: `http://localhost:8999` (port mapping)
 - SearXNG → Redis: `redis://redis:6379` (Docker DNS)
 - External → SearXNG: `http://localhost:8999`
-- External → Adapter: `http://localhost:8000`
+- External → Adapter: `http://localhost:8001`
 
 **Config:** Use `config.local.yaml` with `searxng_url: "http://localhost:8999"`
 
@@ -84,7 +84,7 @@ adapter:
 
 **`docker-compose.yaml`:**
 - All services on same Docker network
-- Only adapter port exposed: `8000:8000`
+- Only adapter port exposed: `8001:8001`
 - SearXNG accessible internally
 
 **Usage:**
@@ -127,8 +127,8 @@ uv run uvicorn simple_tavily_adapter.main:app --reload
 |---------|---------------|-----------|------------------|
 | SearXNG | 8080 | 8999 | http://localhost:8999 |
 | Redis | 6379 | 6379 | localhost:6379 |
-| Adapter (Docker) | 8000 | 8000 | http://localhost:8000 |
-| Adapter (Local) | 8000 | 8000 | http://localhost:8000 |
+| Adapter (Docker) | 8001 | 8001 | http://localhost:8001 |
+| Adapter (Local) | 8001 | 8001 | http://localhost:8001 |
 
 ---
 
@@ -139,7 +139,7 @@ uv run uvicorn simple_tavily_adapter.main:app --reload
 
 ```bash
 docker compose up -d
-curl http://localhost:8000/search -d '{"query":"test"}' -H 'Content-Type: application/json'
+curl http://localhost:8001/search -d '{"query":"test"}' -H 'Content-Type: application/json'
 ```
 
 **Config:** `config.example.yaml` → `config.yaml`
@@ -286,7 +286,7 @@ make docker-up          # Start SearXNG + Redis (with ports)
 make run                # Run adapter locally
 make docker-down        # Stop all
 curl http://localhost:8999/search?q=test&format=json  # Test SearXNG
-curl http://localhost:8000/health  # Test adapter
+curl http://localhost:8001/health  # Test adapter
 ```
 
 ### Docker Commands

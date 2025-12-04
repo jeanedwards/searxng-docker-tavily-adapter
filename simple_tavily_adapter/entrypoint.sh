@@ -57,8 +57,8 @@ ls -la /app/simple_tavily_adapter/ | head -n 15
 # Start the application with uvicorn using module path
 # This allows relative imports to work properly
 echo "=========================================="
-echo "INFO: Starting Tavily Adapter on 0.0.0.0:8000"
+echo "INFO: Starting Tavily Adapter on 0.0.0.0:8001"
 echo "=========================================="
 cd /app
-exec uvicorn simple_tavily_adapter.main:app --host 0.0.0.0 --port 8000
+exec uvicorn simple_tavily_adapter.main:app --host 0.0.0.0 --port 8001
 

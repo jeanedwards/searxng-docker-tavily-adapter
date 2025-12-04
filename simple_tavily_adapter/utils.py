@@ -45,8 +45,22 @@ EXCLUDED_TAGS = [
 
 # Common image file extensions (including exotic formats)
 IMAGE_EXTENSIONS = (
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".bmp",
-    ".tiff", ".tif", ".avif", ".heic", ".heif", ".jfif", ".pjpeg", ".pjp",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".avif",
+    ".heic",
+    ".heif",
+    ".jfif",
+    ".pjpeg",
+    ".pjp",
 )
 
 # Regex patterns to remove common noise from markdown output
@@ -84,9 +98,24 @@ def build_browser_config() -> BrowserConfig:
     - custom cookies for authenticated access
     - extra HTTP headers
 
+    Also enables anti-bot detection features:
+    - enable_stealth: Uses playwright-stealth to modify browser fingerprints
+    - extra_args: Chromium flags to avoid automation detection
+    - ignore_https_errors: Handles HTTP/2 protocol errors on protected sites
+
     Returns:
         BrowserConfig: Configuration for AsyncWebCrawler browser
     """
+    # Extra browser args to avoid bot detection
+    # These flags help bypass automation detection on protected sites
+    stealth_args = [
+        "--disable-blink-features=AutomationControlled",  # Hide automation flag
+        "--disable-dev-shm-usage",  # Avoid shared memory issues in containers
+        "--no-sandbox",  # Required for some containerized environments
+        "--disable-web-security",  # Help with CORS/protocol issues
+        "--disable-features=VizDisplayCompositor",  # Reduce fingerprinting
+    ]
+
     # Build browser config with cookies and stealth settings
     browser_config = BrowserConfig(
         headless=config.browser_headless,
@@ -95,6 +124,12 @@ def build_browser_config() -> BrowserConfig:
         user_agent=config.scraper_user_agent,
         # Extra headers from config
         headers=config.browser_extra_headers if config.browser_extra_headers else None,
+        # Enable stealth mode to bypass basic bot detection
+        enable_stealth=True,
+        # Extra Chromium args for anti-detection
+        extra_args=stealth_args,
+        # Ignore HTTPS/TLS errors (helps with ERR_HTTP2_PROTOCOL_ERROR)
+        ignore_https_errors=True,
     )
 
     # Add cookies if configured
@@ -115,6 +150,8 @@ def build_search_crawl_config() -> CrawlerRunConfig:
     Uses balanced settings for speed and content quality. Excludes navigation
     elements and applies aggressive pruning filter to focus on main content.
 
+    Also enables anti-bot detection features for protected sites.
+
     Returns:
         CrawlerRunConfig: Configuration for quality search scraping
     """
@@ -133,7 +170,7 @@ def build_search_crawl_config() -> CrawlerRunConfig:
 
     return CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
-        check_robots_txt=True,
+        check_robots_txt=False,  # Disabled to allow extraction from all sites
         remove_overlay_elements=True,
         process_iframes=False,  # Fast mode: skip iframes
         excluded_tags=EXCLUDED_TAGS,  # Remove nav, header, footer, aside, etc.
@@ -141,6 +178,10 @@ def build_search_crawl_config() -> CrawlerRunConfig:
         page_timeout=timeout_ms,
         delay_before_return_html=0.3,  # Small delay for dynamic content to load
         markdown_generator=md_generator,
+        # Anti-bot detection features to bypass protected sites
+        magic=True,  # Auto-handle common bot detection patterns
+        simulate_user=True,  # Simulate human-like behavior
+        override_navigator=True,  # Spoof navigator properties
     )
 
 
@@ -605,6 +646,11 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
     "advanced" (thorough) extraction modes. Excludes navigation elements
     and applies aggressive pruning filter to focus on main content.
 
+    Also enables anti-bot detection features:
+    - magic: Auto-handles common bot detection patterns
+    - simulate_user: Simulates human mouse movements
+    - override_navigator: Spoofs browser navigator properties
+
     Args:
         depth: "basic" or "advanced"
         timeout_seconds: Timeout in seconds (minimum 3s)
@@ -629,7 +675,7 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
 
     return CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
-        check_robots_txt=True,
+        check_robots_txt=False,  # Disabled to allow extraction from all sites
         remove_overlay_elements=True,
         process_iframes=is_advanced,  # Only process iframes in advanced mode
         excluded_tags=EXCLUDED_TAGS,  # Remove nav, header, footer, aside, etc.
@@ -637,6 +683,10 @@ def build_run_config(depth: str, timeout_seconds: float) -> CrawlerRunConfig:
         page_timeout=timeout_ms,
         delay_before_return_html=1.5 if is_advanced else 0.3,  # Wait for dynamic content to load
         markdown_generator=md_generator,
+        # Anti-bot detection features to bypass protected sites
+        magic=True,  # Auto-handle common bot detection patterns
+        simulate_user=True,  # Simulate human-like mouse movements
+        override_navigator=True,  # Spoof navigator properties (webdriver, plugins)
     )
 
 
@@ -709,17 +759,19 @@ async def extract_pdf_text(
     url: str,
     timeout: float = 30.0,
     max_size_mb: float = 50.0,
+    max_pages: int = 10,
 ) -> tuple[str | None, str | None]:
     """
     Download and extract text from a PDF URL.
 
     Uses PyMuPDF (fitz) for text extraction. Only extracts text-based PDFs,
-    not scanned images (no OCR). Respects size limits to avoid memory issues.
+    not scanned images (no OCR). Respects size and page limits.
 
     Args:
         url: URL of the PDF to download
         timeout: Download timeout in seconds
         max_size_mb: Maximum PDF size in megabytes (default 50MB)
+        max_pages: Maximum number of pages to extract (default 10)
 
     Returns:
         Tuple of (extracted_text, error_message)
@@ -769,9 +821,13 @@ async def extract_pdf_text(
         pdf_stream = io.BytesIO(pdf_bytes)
         doc = fitz.open(stream=pdf_stream, filetype="pdf")
 
-        # Extract text from all pages
+        # Limit pages to extract (default 10 to avoid processing huge documents)
+        total_pages = len(doc)
+        pages_to_extract = min(total_pages, max_pages)
+
+        # Extract text from limited number of pages
         text_parts = []
-        for page_num in range(len(doc)):
+        for page_num in range(pages_to_extract):
             page = doc[page_num]
             page_text = page.get_text("text")
             if page_text and page_text.strip():
@@ -779,8 +835,14 @@ async def extract_pdf_text(
 
         doc.close()
 
-        # Combine all pages
+        # Combine extracted pages
         full_text = "\n\n".join(text_parts)
+
+        # Add note if document was truncated
+        if total_pages > max_pages:
+            full_text += (
+                f"\n\n[Note: PDF truncated. Showing {pages_to_extract} of {total_pages} pages]"
+            )
 
         if not full_text.strip():
             # PDF has no extractable text (likely scanned images)

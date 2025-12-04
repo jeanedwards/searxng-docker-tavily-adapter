@@ -48,7 +48,7 @@ print(response)
 ```python
 import requests
 
-response = requests.post("http://localhost:8000/search", json={
+response = requests.post("http://localhost:8001/search", json={
     "query": "bitcoin price",
     "max_results": 5,
     "include_raw_content": True
@@ -67,7 +67,7 @@ from tavily import TavilyClient
 # Change only the base_url
 client = TavilyClient(
     api_key="unused",  # Key is ignored
-    base_url="http://localhost:8000"  # Point to your adapter
+    base_url="http://localhost:8001"  # Point to your adapter
 )
 
 response = client.search(
@@ -80,7 +80,7 @@ response = client.search(
 ### Option 4: Tavily Extract API
 
 ```bash
-curl -X POST "http://localhost:8000/extract" \
+curl -X POST "http://localhost:8001/extract" \
      -H "Content-Type: application/json" \
      -d '{"urls": ["https://example.com"], "include_images": true}'
 ```
@@ -106,7 +106,7 @@ Update your code as follows:
 # After:
 client = TavilyClient()  # No API key needed
 # OR
-client = TavilyClient(base_url="http://localhost:8000")
+client = TavilyClient(base_url="http://localhost:8001")
 ```
 
 Everything else **stays exactly the same**.
@@ -138,7 +138,7 @@ search:
 adapter:
   searxng_url: "http://searxng:8080"
   server:
-    port: 8000
+    port: 8001
   scraper:
     max_content_length: 2500
 ```
@@ -156,11 +156,11 @@ docker-compose up -d
 curl "http://localhost:8999/search?q=test&format=json"
 
 # Tavily Adapter
-curl -X POST "http://localhost:8000/search" \
+curl -X POST "http://localhost:8001/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test", "max_results": 3}'
 
-curl -X POST "http://localhost:8000/extract" \
+curl -X POST "http://localhost:8001/extract" \
      -H "Content-Type: application/json" \
      -d '{"urls": "https://example.com", "format": "text"}'
 ```

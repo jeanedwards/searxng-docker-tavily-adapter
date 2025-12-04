@@ -74,7 +74,7 @@ run:
 	@echo "ℹ️  Adapter will use SearXNG at http://localhost:8999"
 	@echo "ℹ️  Press Ctrl+C to stop"
 	@echo ""
-	uv run uvicorn simple_tavily_adapter.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn simple_tavily_adapter.main:app --reload --host 0.0.0.0 --port 8001
 
 # Start Docker containers (SearXNG + Redis) for local development
 # Uses docker-compose.local.yaml to expose ports correctly
@@ -147,7 +147,7 @@ clean:
 # Test the API
 test-api:
 	@echo "🧪 Testing API..."
-	@curl -X POST "http://localhost:8000/search" \
+	@curl -X POST "http://localhost:8001/search" \
 	     -H "Content-Type: application/json" \
 	     -d '{"query": "test search", "max_results": 3}' \
 	     | uv run python -m json.tool
@@ -155,7 +155,7 @@ test-api:
 # Check health endpoint
 health:
 	@echo "🏥 Checking health..."
-	@curl -s http://localhost:8000/health | uv run python -m json.tool
+	@curl -s http://localhost:8001/health | uv run python -m json.tool
 
 # Install Playwright browsers (if needed separately)
 install-playwright:

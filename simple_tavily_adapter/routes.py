@@ -33,10 +33,15 @@ else:
     search_service = SearchService(logger=logger)
 
 extract_service = ExtractService(logger=logger)
-# Response cache stores serialized bodies keyed by request payload.
+
+# Response caches store serialized bodies keyed by request payload.
 search_response_cache = ResponseCache(
     max_entries=config.search_response_cache_max_entries,
     ttl_seconds=config.search_response_cache_ttl,
+)
+extract_response_cache = ResponseCache(
+    max_entries=config.extract_response_cache_max_entries,
+    ttl_seconds=config.extract_response_cache_ttl,
 )
 
 
@@ -92,7 +97,32 @@ async def extract(request: ExtractRequest) -> dict[str, Any]:
     Raises:
         HTTPException: On invalid parameters or extraction errors
     """
-    return await extract_service.extract(request)
+    # Build cache key from request parameters that affect the output.
+    # Convert urls to tuple for hashability.
+    urls_tuple = tuple(request.urls) if isinstance(request.urls, list) else (request.urls,)
+    cache_key = (
+        urls_tuple,
+        request.format,
+        request.extract_depth,
+        request.include_images,
+        request.include_links,
+        request.include_favicon,
+    )
+
+    # Serve cached response when available to bypass expensive extraction.
+    cached_response = await extract_response_cache.get(cache_key)
+    if cached_response is not None:
+        logger.debug("Serving cached /extract response for urls=%s", urls_tuple[:2])
+        return cached_response
+
+    response_payload = await extract_service.extract(request)
+
+    # Only cache successful extractions (no failed results).
+    # This avoids caching transient errors.
+    if not response_payload.get("failed_results"):
+        await extract_response_cache.set(cache_key, response_payload)
+
+    return response_payload
 
 
 @router.get("/health")

@@ -60,7 +60,7 @@ class Config:
         return {
             "adapter": {
                 "searxng_url": "http://searxng:8080",
-                "server": {"host": "0.0.0.0", "port": 8000},
+                "server": {"host": "0.0.0.0", "port": 8001},
                 "scraper": {
                     "timeout": 10,
                     "max_content_length": 2500,
@@ -79,6 +79,9 @@ class Config:
                     "timeout_basic": 12,
                     "timeout_advanced": 25,
                     "default_format": "markdown",
+                    "pdf_max_pages": 10,
+                    "response_cache_ttl_seconds": 300,
+                    "response_cache_max_entries": 64,
                 },
             }
         }
@@ -97,7 +100,7 @@ class Config:
 
     @property
     def server_port(self) -> int:
-        return self._config.get("adapter", {}).get("server", {}).get("port", 8000)
+        return self._config.get("adapter", {}).get("server", {}).get("port", 8001)
 
     @property
     def scraper_timeout(self) -> int:
@@ -162,6 +165,27 @@ class Config:
     @property
     def extract_default_format(self) -> str:
         return self._config.get("adapter", {}).get("extract", {}).get("default_format", "markdown")
+
+    @property
+    def extract_pdf_max_pages(self) -> int:
+        """Maximum number of pages to extract from PDFs (default 10)."""
+        return self._config.get("adapter", {}).get("extract", {}).get("pdf_max_pages", 10)
+
+    @property
+    def extract_response_cache_ttl(self) -> int:
+        """TTL for extract response cache in seconds (default 5 minutes)."""
+        return (
+            self._config.get("adapter", {})
+            .get("extract", {})
+            .get("response_cache_ttl_seconds", 300)
+        )
+
+    @property
+    def extract_response_cache_max_entries(self) -> int:
+        """Maximum entries in extract response cache (default 64)."""
+        return (
+            self._config.get("adapter", {}).get("extract", {}).get("response_cache_max_entries", 64)
+        )
 
     # =========================================================================
     # Google Custom Search API configuration (environment variable driven)

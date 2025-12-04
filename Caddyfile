@@ -69,7 +69,7 @@ header {
 	# enable HSTS
 	# WARNING: Once this value is set, the site must continue to support HTTPS until the expiry time is reached.
 
-	# Strict-Transport-Security max-age=15768000;
+	# Strict-Transport-Security max-age=15768001;
 
 	# Remove "Server" header
 	-Server

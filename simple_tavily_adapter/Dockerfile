@@ -21,7 +21,7 @@ COPY . /app/simple_tavily_adapter/
 # Make entrypoint script executable
 RUN chmod +x /app/simple_tavily_adapter/entrypoint.sh
 
-EXPOSE 8000
+EXPOSE 8001
 
 # Use entrypoint script to handle config injection for Azure deployment
 ENTRYPOINT ["/app/simple_tavily_adapter/entrypoint.sh"]
