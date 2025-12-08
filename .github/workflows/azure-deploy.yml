@@ -21,6 +21,9 @@ env:
   MAIN_IMAGE: jeconsulting/searxng-docker-tavily-adapter:latest
   REDIS_IMAGE: valkey/valkey:8-alpine
   SEARXNG_IMAGE: searxng/searxng:latest
+  
+  # Key Vault configuration
+  KEY_VAULT_NAME: gbli-risk-insights-kv
 
 jobs:
   deploy:
@@ -134,6 +137,8 @@ jobs:
                 env:
                 - name: SEARXNG_URL
                   value: "http://localhost:8080"
+                - name: SEARCH_BACKEND
+                  value: "google"
                 volumeMounts:
                 - volumeName: adapter-config-volume
                   mountPath: /srv/searxng-docker
@@ -175,6 +180,115 @@ jobs:
           
           echo "Waiting 30 seconds for containers to start..."
           sleep 30
+      
+      # Configure Key Vault access and secret references for Google Search API
+      - name: Configure Key Vault Secret References
+        run: |
+          set -euo pipefail
+          
+          # Assign system-assigned managed identity to container app
+          echo "Assigning managed identity to container app..."
+          az containerapp identity assign \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --system-assigned \
+            >/dev/null
+          
+          # Get the principal ID of the managed identity
+          PRINCIPAL_ID=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "identity.principalId" \
+            --output tsv)
+          
+          if [ -z "$PRINCIPAL_ID" ] || [ "$PRINCIPAL_ID" = "None" ]; then
+            echo "Failed to retrieve managed identity principal ID" >&2
+            exit 1
+          fi
+          echo "Managed identity principal ID: $PRINCIPAL_ID"
+          
+          # Get Key Vault resource ID for RBAC role assignment
+          echo "Retrieving Key Vault resource ID..."
+          KEYVAULT_ID=$(az keyvault show \
+            --name ${{ env.KEY_VAULT_NAME }} \
+            --query "id" \
+            --output tsv)
+          
+          if [ -z "$KEYVAULT_ID" ]; then
+            echo "ERROR: Failed to retrieve Key Vault resource ID" >&2
+            exit 1
+          fi
+          echo "Key Vault ID: $KEYVAULT_ID"
+          
+          # Grant Key Vault Secrets User role to the managed identity
+          # This role allows the container app to read secret values from Key Vault
+          echo "Granting 'Key Vault Secrets User' role to managed identity..."
+          
+          # Check if role assignment already exists
+          EXISTING_ROLE=$(az role assignment list \
+            --assignee "$PRINCIPAL_ID" \
+            --scope "$KEYVAULT_ID" \
+            --role "Key Vault Secrets User" \
+            --query "[0].id" \
+            --output tsv 2>/dev/null || echo "")
+          
+          if [ -n "$EXISTING_ROLE" ] && [ "$EXISTING_ROLE" != "None" ]; then
+            echo "Role assignment already exists - skipping"
+          else
+            echo "Creating new role assignment..."
+            # Attempt to create the role assignment
+            if az role assignment create \
+              --role "Key Vault Secrets User" \
+              --assignee-object-id "$PRINCIPAL_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --scope "$KEYVAULT_ID"; then
+              echo "Role assignment created successfully"
+            else
+              echo "ERROR: Failed to create role assignment" >&2
+              echo "The managed identity ($PRINCIPAL_ID) must have 'Key Vault Secrets User' role on Key Vault '${{ env.KEY_VAULT_NAME }}'" >&2
+              exit 1
+            fi
+          fi
+          
+          # Wait for Azure RBAC permissions to propagate across the platform
+          # This is critical - without this wait, Key Vault references may fail
+          echo "Waiting 30 seconds for Key Vault permissions to propagate..."
+          sleep 30
+          
+          # Construct Key Vault secret reference URIs for Google Search API
+          # These URIs point to secrets stored in Azure Key Vault
+          GOOGLE_API_KEY_URI="https://${{ env.KEY_VAULT_NAME }}.vault.azure.net/secrets/GoogleCseApiKey"
+          GOOGLE_CSE_ID_URI="https://${{ env.KEY_VAULT_NAME }}.vault.azure.net/secrets/GoogleCseId"
+          
+          echo "Configuring Key Vault secret references..."
+          
+          # Create container app secrets with Key Vault references
+          # Secrets use 'keyvaultref:' syntax to reference Key Vault secrets
+          # The system-assigned managed identity is used automatically to access Key Vault
+          echo "Creating container app secrets with Key Vault references..."
+          az containerapp secret set \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --secrets \
+              "google-api-key=keyvaultref:${GOOGLE_API_KEY_URI},identityref:system" \
+              "google-cse-id=keyvaultref:${GOOGLE_CSE_ID_URI},identityref:system" \
+            >/dev/null
+          
+          echo "Container app secrets created successfully"
+          
+          # Update environment variables to reference the secrets
+          # Environment variables use 'secretref:' syntax to reference container app secrets
+          echo "Updating environment variables to reference secrets..."
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --set-env-vars \
+              GOOGLE_API_KEY="secretref:google-api-key" \
+              GOOGLE_CSE_ID="secretref:google-cse-id" \
+            >/dev/null
+          
+          echo "Environment variables updated successfully!"
+          echo "Key Vault secret references configured successfully!"
       
       # Display the deployed application URL
       - name: Get Application URL
