@@ -278,10 +278,12 @@ jobs:
           
           # Update environment variables to reference the secrets
           # Environment variables use 'secretref:' syntax to reference container app secrets
+          # --container-name is required for multi-container apps (with sidecars)
           echo "Updating environment variables to reference secrets..."
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
+            --container-name je-tavily-adapter \
             --set-env-vars \
               GOOGLE_API_KEY="secretref:google-api-key" \
               GOOGLE_CSE_ID="secretref:google-cse-id" \
