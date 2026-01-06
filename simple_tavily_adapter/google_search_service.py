@@ -16,9 +16,9 @@ from .models import SearchRequest, TavilyResponse, TavilyResult
 from .search_base import BaseSearchService
 
 # Max retries for transient connection errors.
-_MAX_RETRIES = 3
+_MAX_RETRIES = 5
 # Base delay between retries in seconds (exponential backoff).
-_RETRY_DELAY_BASE = 0.5
+_RETRY_DELAY_BASE = 1
 # Serialize Google API calls. httplib2 isn't thread-safe, so we process
 # requests one at a time to avoid timeouts and SSL errors.
 _MAX_CONCURRENT_REQUESTS = 1
@@ -83,7 +83,12 @@ class GoogleSearchService(BaseSearchService):
         return self._service
 
     def _is_retryable_error(self, exc: Exception) -> bool:
-        """Check if exception is a transient error that can be retried."""
+        """Check if exception is a transient error that can be retried.
+
+        Returns True for:
+        - Transient connection/SSL errors
+        - Rate limit errors (429)
+        """
         error_str = str(exc).lower()
         # Check for common transient connection/SSL errors.
         retryable_indicators = [
@@ -94,16 +99,21 @@ class GoogleSearchService(BaseSearchService):
             "broken pipe",
             "timed out",
             "timeout",
+            "429",  # Rate limit errors
+            "rate limit",
+            "quota exceeded",
         ]
         return any(indicator in error_str for indicator in retryable_indicators)
 
     def _execute_google_search(self, query: str, num_results: int) -> dict[str, Any]:
         """
-        Execute Google search with retry logic for transient SSL errors.
+        Execute Google search with retry logic for transient errors.
 
         The googleapiclient uses httplib2 which can have SSL connection
         issues under rapid concurrent requests. This method retries with
-        a fresh connection on SSL errors.
+        exponential backoff for:
+        - Transient SSL/connection errors
+        - Rate limit errors (429)
         """
         last_error = None
 
@@ -122,21 +132,35 @@ class GoogleSearchService(BaseSearchService):
                 )
             except Exception as exc:
                 last_error = exc
-                # Only retry on transient connection errors.
+                # Check if error is retryable (transient connection or rate limit).
                 if self._is_retryable_error(exc) and attempt < _MAX_RETRIES - 1:
+                    # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s, etc.
                     delay = _RETRY_DELAY_BASE * (2**attempt)
-                    self.logger.warning(
-                        "Transient error on attempt %d/%d, retrying in %.1fs: %s",
-                        attempt + 1,
-                        _MAX_RETRIES,
-                        delay,
-                        str(exc),
-                    )
+
+                    # Log appropriate message based on error type.
+                    error_str = str(exc).lower()
+                    if "429" in error_str or "rate limit" in error_str or "quota" in error_str:
+                        self.logger.warning(
+                            "Rate limit error on attempt %d/%d, retrying in %.1fs: %s",
+                            attempt + 1,
+                            _MAX_RETRIES,
+                            delay,
+                            str(exc),
+                        )
+                    else:
+                        self.logger.warning(
+                            "Transient error on attempt %d/%d, retrying in %.1fs: %s",
+                            attempt + 1,
+                            _MAX_RETRIES,
+                            delay,
+                            str(exc),
+                        )
+
                     # Reset service to force new connection on next attempt.
                     self._service = None
                     time.sleep(delay)
                 else:
-                    # Non-SSL error or final attempt, re-raise.
+                    # Non-retryable error or final attempt, re-raise.
                     raise
 
         # Should not reach here, but raise last error if we do.
@@ -193,15 +217,18 @@ class GoogleSearchService(BaseSearchService):
                 error_msg = str(exc)
                 self.logger.error("Google API error: %s", error_msg)
 
+                # Check error type for proper response.
                 if "403" in error_msg or "Forbidden" in error_msg:
                     raise HTTPException(
                         status_code=500,
                         detail="Google API authentication failed. Check your API key.",
                     ) from exc
-                if "429" in error_msg or "Rate Limit" in error_msg:
+                if "429" in error_msg or "Rate Limit" in error_msg or "Quota" in error_msg:
+                    # 429 errors should have been retried by _execute_google_search().
+                    # If we reach here, all retries failed.
                     raise HTTPException(
                         status_code=429,
-                        detail="Google API rate limit exceeded",
+                        detail="Google API rate limit exceeded after retries",
                     ) from exc
                 if "400" in error_msg or "Invalid" in error_msg:
                     raise HTTPException(
